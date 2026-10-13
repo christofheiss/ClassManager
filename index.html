@@ -15,24 +15,24 @@
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="text-gray-800 min-h-screen py-6 px-4 md:px-8">
+<body class="text-gray-800 min-h-screen py-2 sm:py-4 px-2 md:px-6">
 
-<div class="max-w-5xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-black/5">
+<div class="max-w-6xl mx-auto bg-white rounded-2xl sm:rounded-3xl shadow-xl ring-1 ring-black/5">
 
     <!-- Header -->
-    <div class="app-header text-white px-6 py-6 sm:py-7 text-center relative overflow-hidden no-print">
+    <div class="app-header rounded-t-2xl sm:rounded-t-3xl text-white px-4 py-2.5 sm:py-3 text-center relative overflow-hidden no-print">
         <div class="relative z-10">
-            <h1 class="text-3xl md:text-4xl font-extrabold mb-1.5 tracking-tight">
+            <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight">
                 <i class="fas fa-people-group mr-2 opacity-80" aria-hidden="true"></i>Klassenmanager
             </h1>
-            <p class="text-indigo-100/90 text-sm">Klassen verwalten · Anwesenheit erfassen · Auswerten · Teams bilden</p>
+            <p class="hidden sm:block text-indigo-100/90 text-xs mt-0.5">Klassen verwalten · Anwesenheit erfassen · Auswerten · Teams bilden</p>
         </div>
         <div class="header-blob header-blob-1"></div>
         <div class="header-blob header-blob-2"></div>
     </div>
 
     <!-- Tab Navigation -->
-    <div class="bg-indigo-50/70 border-b border-indigo-100 flex no-print overflow-x-auto" role="tablist" aria-label="Bereiche">
+    <div class="sticky top-0 z-30 bg-indigo-50 border-b border-indigo-100 flex no-print overflow-x-auto shadow-sm" role="tablist" aria-label="Bereiche">
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 active" data-tab="classes"
                 id="tab-btn-classes" role="tab" aria-selected="true" aria-controls="tab-classes">
             <i class="fas fa-chalkboard-teacher" aria-hidden="true"></i><span class="hidden sm:inline">Klassen</span><span class="text-[9px] leading-none sm:hidden">Klassen</span>
@@ -64,7 +64,7 @@
     </div>
 
     <!-- TAB 1: KLASSEN -->
-    <div id="tab-classes" class="p-5 md:p-8" role="tabpanel" aria-labelledby="tab-btn-classes">
+    <div id="tab-classes" class="p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-classes">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Links: Klassenliste -->
             <div>
@@ -236,7 +236,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     </div>
 
     <!-- TAB 2: ANWESENHEIT -->
-    <div id="tab-attendance" class="hidden p-5 md:p-8" role="tabpanel" aria-labelledby="tab-btn-attendance">
+    <div id="tab-attendance" class="hidden p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-attendance">
         <div class="mb-6 flex flex-col sm:flex-row gap-4">
             <div>
                 <label for="attendance-class-select" class="block text-sm font-medium text-gray-700 mb-1">Klasse auswählen</label>
@@ -317,7 +317,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     </div>
 
     <!-- TAB: AUSWERTUNG -->
-    <div id="tab-stats" class="hidden p-5 md:p-8" role="tabpanel" aria-labelledby="tab-btn-stats">
+    <div id="tab-stats" class="hidden p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-stats">
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
             <div class="flex flex-col sm:flex-row gap-4">
                 <div>
@@ -385,7 +385,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     </div>
 
     <!-- TAB: PRÜFUNGEN -->
-    <div id="tab-exams" class="hidden p-5 md:p-8" role="tabpanel" aria-labelledby="tab-btn-exams">
+    <div id="tab-exams" class="hidden p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-exams">
         <div class="mb-6 flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
             <div>
                 <label for="exams-class-select" class="block text-sm font-medium text-gray-700 mb-1">Klasse/Gruppe auswählen</label>
@@ -494,7 +494,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     </div>
 
     <!-- TAB: PUNKTE (Klassenpunkte-Tracker) -->
-    <div id="tab-points" class="hidden p-5 md:p-8" role="tabpanel" aria-labelledby="tab-btn-points">
+    <div id="tab-points" class="hidden p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-points">
         <div class="mb-6">
             <label for="points-class-select" class="block text-sm font-medium text-gray-700 mb-1">Klasse auswählen</label>
             <select id="points-class-select"
@@ -590,13 +590,11 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     </div>
 
     <!-- TAB: SITZORDNUNG -->
-    <div id="tab-seating" class="hidden p-5 md:p-8" role="tabpanel" aria-labelledby="tab-btn-seating">
-        <div class="no-print flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
-            <div class="flex-1">
-                <label for="seating-class-select" class="block text-sm font-medium text-gray-700 mb-1">Klasse</label>
-                <select id="seating-class-select" class="w-full border rounded-md p-2 text-sm bg-white"></select>
-            </div>
-            <p class="text-xs text-gray-400 sm:max-w-xs"><i class="fas fa-floppy-disk mr-1" aria-hidden="true"></i>Der Plan wird pro Klasse automatisch gespeichert. Eigene Varianten lassen sich unten benennen und ablegen.</p>
+    <div id="tab-seating" class="hidden p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-seating">
+        <div class="no-print flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
+            <label for="seating-class-select" class="text-sm font-medium text-gray-700">Klasse</label>
+            <select id="seating-class-select" class="border rounded-md p-2 text-sm bg-white w-full sm:w-72"></select>
+            <p class="text-xs text-gray-400"><i class="fas fa-floppy-disk mr-1" aria-hidden="true"></i>Plan wird automatisch gespeichert.</p>
         </div>
         <p id="seating-empty" class="text-center text-gray-400 py-10 text-sm"><i class="fas fa-chair text-4xl mb-3 opacity-30 block" aria-hidden="true"></i>Wähle eine Klasse, um die Sitzordnung zu planen.</p>
         <div id="seating-content" class="hidden space-y-4">
@@ -651,31 +649,35 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                 <div id="seating-unseated" class="flex flex-wrap gap-1.5 min-h-[2rem]"></div>
             </div>
 
-            <div class="no-print border-t pt-4">
-                <h3 class="text-sm font-semibold text-gray-700 mb-1">Tischanordnungen dieser Klasse</h3>
+            <details class="no-print border-t pt-3" id="seating-layouts-details">
+                <summary class="cursor-pointer text-sm font-semibold text-gray-700">Tischanordnungen dieser Klasse</summary>
+                <div class="mt-2">
                 <p class="text-xs text-gray-400 mb-2">Nur die Tische (ohne Personen) — z.B. «Klassenzimmer» oder «Gruppenarbeit». Beim Laden werden die Personen neu gesetzt.</p>
                 <form id="seating-layout-form" class="flex gap-2 mb-2">
                     <input type="text" id="seating-layout-name" maxlength="60" placeholder="Name, z.B. Klassenzimmer" aria-label="Name der Tischanordnung" class="flex-1 min-w-0 border rounded-md p-2 text-sm">
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md text-sm inline-flex items-center gap-2"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Speichern</button>
                 </form>
                 <ul id="seating-layout-list" class="space-y-1.5"></ul>
-            </div>
+                </div>
+            </details>
 
-            <div class="no-print border-t pt-4">
-                <h3 class="text-sm font-semibold text-gray-700 mb-1">Gespeicherte Sitzordnungen</h3>
+            <details class="no-print border-t pt-3" id="seating-saved-details" open>
+                <summary class="cursor-pointer text-sm font-semibold text-gray-700">Gespeicherte Sitzordnungen</summary>
+                <div class="mt-2">
                 <p class="text-xs text-gray-400 mb-2">Tische <em>und</em> Personen — beliebig viele pro Klasse.</p>
                 <form id="seating-save-form" class="flex gap-2 mb-2">
                     <input type="text" id="seating-save-name" maxlength="60" placeholder="Name, z.B. Gruppenarbeit" aria-label="Name der Sitzordnung" class="flex-1 min-w-0 border rounded-md p-2 text-sm">
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md text-sm inline-flex items-center gap-2"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Speichern</button>
                 </form>
                 <ul id="seating-saved-list" class="space-y-1.5"></ul>
-            </div>
+                </div>
+            </details>
         </div>
     </div>
 
     <!-- TAB 3: TEAMS -->
     <div id="tab-teams" class="hidden" role="tabpanel" aria-labelledby="tab-btn-teams">
-        <div class="p-5 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 no-print">
+        <div class="p-3 sm:p-4 md:p-5 grid grid-cols-1 md:grid-cols-2 gap-5 no-print">
             <div class="space-y-5">
                 <div id="source-banner" class="hidden bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-800 flex items-start gap-2">
                     <i class="fas fa-info-circle mt-0.5 flex-shrink-0 text-indigo-400" aria-hidden="true"></i>
@@ -790,8 +792,8 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                 </div>
             </div>
         </div>
-        <div id="results-section" class="hidden bg-gray-100 p-5 md:p-8 border-t border-gray-200">
-            <h2 class="text-2xl font-bold mb-6 text-center text-indigo-800">Erstellte Teams</h2>
+        <div id="results-section" class="hidden bg-gray-100 p-3 sm:p-4 md:p-5 border-t border-gray-200">
+            <h2 class="text-xl font-bold mb-3 text-center text-indigo-800">Erstellte Teams</h2>
             <div id="teams-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
             <div id="results-actions" class="mt-6 flex justify-center gap-3 flex-wrap no-print">
                 <button id="copy-teams-btn" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 text-sm transition-colors">
@@ -811,7 +813,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     </div>
 
     <!-- Footer: Komplett-Backup & lokale Datendatei -->
-    <div class="bg-gray-50 border-t border-gray-200 px-5 py-3 space-y-2 text-xs text-gray-400 no-print">
+    <div class="bg-gray-50 border-t border-gray-200 px-5 py-3 space-y-2 text-xs text-gray-400 no-print rounded-b-2xl sm:rounded-b-3xl">
         <div class="flex flex-col sm:flex-row items-center justify-between gap-2">
             <span class="sm:flex-1 sm:min-w-0"><i class="fas fa-database mr-1" aria-hidden="true"></i>Alle Daten bleiben lokal in diesem Browser (unverschlüsselt) — auf geteilten Geräten Backups mit Passwort schützen.</span>
             <div class="flex flex-wrap justify-center sm:justify-end gap-2 flex-shrink-0">
