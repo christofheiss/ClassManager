@@ -644,3 +644,14 @@ test('validateBackup: Klassenart (kind) wird übernommen, Standard ist both', ()
     const r = validateBackup({ classes: [{ id: 1, name: 'A', kind: 'sport' }, { id: 2, name: 'B' }, { id: 3, name: 'C', kind: 'x' }, { id: 4, name: 'D', kind: 'room' }] });
     assert.deepEqual(r.classes.map(c => c.kind), ['sport', 'both', 'both', 'room']);
 });
+
+test('validateBackup ist idempotent (Datendatei-Abgleich vergleicht normalisierte Stände)', () => {
+    const raw = { classes: [{ id: 1, name: 'A', students: [{ id: 1, name: 'Max', gender: 'male' }, { id: 2, name: 'Eva', gender: 'female', sporty: true }] }],
+        exams: { 1: [{ id: 1, title: 'T', date: '2026-01-05', mode: 'grades', results: { 1: 5 } }] },
+        pointsData: { 1: { goals: [{ id: 1, text: 'Z', points: 2 }], entries: [] } },
+        seatingData: { 1: { current: { cols: 4, rows: 3, desks: [{ x: 0, y: 0, s: 1, l: true }] }, saved: [], layouts: [] } } };
+    const once = validateBackup(raw);
+    const twice = validateBackup(JSON.parse(JSON.stringify(once)));
+    const pick = r => JSON.stringify([r.classes, r.attendanceData, r.persons, r.apartPairs, r.exams, r.pointsData, r.seatingData]);
+    assert.equal(pick(once), pick(twice));
+});

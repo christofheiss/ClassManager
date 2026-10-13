@@ -246,3 +246,6 @@ body.presenting { overflow: hidden; }
 .seat-desk.seat-locked { border-color: #d97706; }
 .present-desk { background: linear-gradient(180deg, #f6ebdc, #e8d3b5); border-color: #b98f5f; color: #3b2a1a; }
 .present-desk-empty { background: transparent; border: 2px dashed #d9c3a3; }
+
+/* Sprungziele nicht unter der fixierten Tab-Leiste verstecken */
+#results-section { scroll-margin-top: 56px; }

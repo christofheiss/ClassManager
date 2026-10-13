@@ -3041,8 +3041,12 @@ async function syncWithDataFile() {
         else await disconnectDataFile();
         return;
     }
-    const localSnap = JSON.stringify({ c: classes, a: attendanceData, p: persons, x: apartPairs });
-    const fileSnap = JSON.stringify({ c: result.classes, a: result.attendanceData, p: result.persons, x: result.apartPairs });
+    // Beide Seiten normalisieren (gleiche Validierung), sonst gelten ältere Daten ohne neue Felder immer als "anders".
+    // Verglichen wird der gesamte Stand — auch Prüfungen, Punkte und Sitzordnungen.
+    const snapOf = r => JSON.stringify([r.classes, r.attendanceData, r.persons, r.apartPairs, r.exams, r.pointsData, r.seatingData]);
+    const localNorm = validateBackup(JSON.parse(JSON.stringify(buildBackupObject())));
+    const localSnap = localNorm ? snapOf(localNorm) : '';
+    const fileSnap = snapOf(result);
     if (localSnap === fileSnap) { setFileStatus('connected', dataFileHandle.name); return; }
     const loadIt = await uiConfirm(
         `Die Datendatei "${dataFileHandle.name}"${result.exportedAt ? ` (Stand ${formatDateDisplay(result.exportedAt.slice(0, 10))})` : ''} unterscheidet sich vom Stand in diesem Browser.\n\n"Aus Datei laden" ersetzt den Browser-Stand. "Browser-Stand behalten" überschreibt die Datei.`,
