@@ -2280,6 +2280,18 @@ document.getElementById('seating-preset').addEventListener('change', function() 
     });
 });
 
+document.getElementById('seating-clear-desks-btn').addEventListener('click', () => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    if (plan.desks.length === 0) { seatMode = 'edit'; setSeatMsg('Es sind keine Tische vorhanden — klicke auf eine Zelle, um Tische zu setzen.'); renderSeating(); return; }
+    withUndo('Alle Tische gelöscht — jetzt neu setzen.', () => {
+        plan.desks = []; seatSel = null; seatMode = 'edit';
+        setSeatMsg('Klicke auf die Zellen, um Tische neu zu setzen. Danach "Plätze tauschen" wählen und die Sitzordnung erstellen.');
+        saveSeating(); renderSeating();
+    });
+});
+
 document.getElementById('seating-unseat-btn').addEventListener('click', () => {
     const cls = currentSeatingClass();
     if (!cls) return;
