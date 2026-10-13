@@ -2,13 +2,14 @@
 // Strategie: unveränderliche Schriften (vendor/fonts/) kommen cache-first, also ohne
 // Netzwerk-Wartezeit; App-Dateien network-first mit Cache-Fallback — Updates kommen sofort an,
 // ohne Netz (z.B. Turnhalle) läuft die zuletzt geladene Version weiter.
-const CACHE_NAME = 'klassenmanager-v5';
+const CACHE_NAME = 'klassenmanager-v6';
 const ASSETS = [
     './',
     './index.html',
     './style.css',
     './core.js',
     './app.js',
+    './theme.js',
     './manifest.webmanifest',
     './icon.svg',
     './icons/icon-192.png',

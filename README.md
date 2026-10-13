@@ -6,7 +6,8 @@ Eine Web-App für Lehrpersonen: Klassen verwalten, Anwesenheit erfassen und ausw
 
 **Warum Klassenmanager?** Kostenlos, ohne Konto und ohne Werbung. Alle Daten bleiben auf dem eigenen Gerät, die App lädt nichts von fremden Servern und läuft nach der Installation auch ohne Internet, z.B. in der Turnhalle. Zum Ausprobieren genügt ein Klick auf **"Beispielklasse anlegen"**.
 
-- **Geräte:** Die App ist für den **Laptop** gedacht, zur Not auch für das **Tablet** (Querformat empfohlen). Eine Bedienung auf dem Smartphone ist nicht vorgesehen.
+- **Geräte:** Die App ist für **Laptop** und **Tablet** gedacht. Auf dem **Smartphone** ist die **Anwesenheit** voll nutzbar (die App startet dort direkt in diesem Reiter); Sitzordnung und Tabellen planst du besser am grösseren Bildschirm.
+- **Hell oder dunkel:** Folgt der Systemeinstellung, umschaltbar über den Mond/Sonne-Knopf oben rechts.
 - **Technik:** Reine Client-App (HTML/CSS/JavaScript), kein Server und kein Konto nötig.
 - **Daten:** Alle Daten bleiben im `localStorage` des Browsers, optional zusätzlich in einer lokalen Datei.
 - **Offline und installierbar:** Es werden keine externen Ressourcen geladen (Schriften, Icons und Styles sind gebündelt). Als gehostete Version (https) läuft die App dank Service Worker auch ohne Netz und lässt sich über **"App installieren"** (oben rechts, Chrome/Edge) bzw. *Teilen → Zum Home-Bildschirm* (iPad) wie eine normale App starten.
@@ -32,11 +33,14 @@ Jeder Reiter hat eine eigene Adresse (z.B. `…/#teams`), die beim Neuladen erha
 
 ### Klassen
 - **Beispielklasse** (20 Schüler(innen) mit Hobbys, Wochenplan und Punkte-Tracker) zum Ausprobieren, später einfach löschen.
+- **Einführungstour** beim ersten Start (drei Schritte), jederzeit erneut über die **Hilfe** (`?` oben rechts) mit allen Tastenkürzeln.
 - Klassen anlegen, umbenennen, löschen; Schüler(innen) einzeln oder per Mehrfach-Import (Text) hinzufügen und wieder entfernen.
 - **Wochenplan** pro Klasse (ein oder mehrere Wochentag/Uhrzeit-Termine).
 - **Unterrichtsart** pro Klasse: *Sport*, *Klassenzimmer* oder *beides* (Standard). Die Sitzordnung zeigt nur Klassen mit Klassenzimmer-Unterricht.
 - Pro Schüler(in): **Geschlecht**, **sportlich** (Läufer-Symbol) und **Hobbys/Sportarten** (Ball-Symbol, z.B. "Fussball, Tennis"). Beides fliesst in die Team-Bildung ein.
 - **Klassenkürzel**: Mischt eine Gruppe mehrere Schulklassen (z.B. Sport 7a+7b), lässt sich pro Person ein Kürzel setzen (Feld "Klasse", `Max m [7b]` im Mehrfach-Import, 5. CSV-Spalte oder Tag-Symbol). Auswertung und Prüfungen können danach pro Kürzel getrennt werden.
+- **Bearbeiten:** Ein Klick auf eine Person öffnet den Dialog für Name, Geschlecht, Klassenkürzel, Hobbys und Sportlich (und zum Entfernen). Beim Umbenennen werden "Nicht zusammen"-Regeln mitgeführt.
+- **Geschlecht "ohne Angabe"** ist möglich und ist der Standard, wenn beim Import nichts angegeben ist. Diese Personen zählen bei Teams und Sitzordnung neutral.
 - Gleiche Vornamen sind nach Rückfrage möglich, am besten mit Initial unterscheiden ("Lena M").
 - Entfernte Schüler(innen) mit erfasster Anwesenheit oder Prüfungsergebnissen bleiben als **"ehemalig"** in den Auswertungen sichtbar.
 
@@ -49,6 +53,8 @@ Jeder Reiter hat eine eigene Adresse (z.B. `…/#teams`), die beim Neuladen erha
 - Pro Klasse und Datum ein eigener Termin (beliebig viele). Ein Klick wechselt den Status: **anwesend (grün) → abwesend (rot) → verletzt (orange)**.
 - *Verletzt* heisst: anwesend, macht aber nicht mit. Diese Personen zählen als anwesend, werden aber nicht in Teams übernommen.
 - Bei Abwesenheit ein **Grund** (Krank, Verletzt, Entschuldigt, Schnuppern, Unentschuldigt, Sonstiges) plus Notiz.
+- **Gemeinsame Klassenwahl:** Die zuletzt gewählte Klasse ist in allen Reitern vorausgewählt. Hat eine Klasse laut Wochenplan gerade Unterricht, schlägt der Reiter sie vor.
+- Die **Speichern-Leiste** bleibt beim Scrollen unten sichtbar. Ein Datum in der Zukunft wird vor dem Speichern bestätigt.
 - Hinweis, wenn das Datum nicht zum Wochenplan passt. Termine lassen sich erneut öffnen, bearbeiten und löschen (mit Rückgängig).
 - Ungespeicherte Änderungen werden angezeigt; vor Verlust wird gewarnt.
 
@@ -59,6 +65,7 @@ Jeder Reiter hat eine eigene Adresse (z.B. `…/#teams`), die beim Neuladen erha
 ### Prüfungen
 - Titel und Datum, wahlweise mit **Punkten und Maximum** (Note nach Schweizer Formel `5 × Punkte ÷ Max + 1`, auf Zehntel gerundet) oder mit **direkter Noteneingabe** (1–6).
 - Auswertung: Anzahl bewertet, Ø-Note, Minimum, Maximum, Anzahl ungenügend, bei gemischten Gruppen zusätzlich pro Kürzel.
+- Ungültige Eingaben (z.B. mehr Punkte als das Maximum) werden rot markiert und überschreiben nie einen bereits gespeicherten Wert.
 - **TXT-Export** im Format `Name Punkte` bzw. `Name Note`. Bei mehreren Kürzeln entsteht pro Kürzel eine Datei.
 
 ### Punkte (Bonusstunden)
@@ -68,7 +75,7 @@ Jeder Reiter hat eine eigene Adresse (z.B. `…/#teams`), die beim Neuladen erha
 
 ### Sitzordnung
 - Pro Klasse ein Raster (bis 16 × 12): Tische per Klick **setzen oder entfernen**, oder eine **Vorlage** wählen (Reihen, Gruppentische, U-Form). **"Alle Tische löschen"** beginnt von vorn.
-- **Plätze tauschen:** zwei Tische nacheinander anklicken; das Schloss **fixiert** einen Platz.
+- **Plätze tauschen:** Person mit Maus oder Finger auf einen anderen Tisch **ziehen** (oder zwei Tische nacheinander anklicken). Auf "Ohne Platz" ziehen gibt den Platz frei; das Schloss **fixiert** einen Platz.
 - **Automatisch erstellen** mit Optionen: Jungen/Mädchen abwechselnd, "Nicht zusammen"-Regeln beachten, nur Anwesende vom letzten Termin. Fixierte Plätze bleiben.
 - Der aktuelle Plan wird **automatisch gespeichert**. Zusätzlich lassen sich pro Klasse beliebig viele benannte **Tischanordnungen** (nur Tische) und **Sitzordnungen** (Tische + Personen) ablegen und wieder laden.
 - **Export** als **PNG** oder **PDF** (A4 quer, neutrale Darstellung ohne Geschlechtsfarben), Drucken und **Präsentationsmodus** (siehe unten).
@@ -78,14 +85,19 @@ Jeder Reiter hat eine eigene Adresse (z.B. `…/#teams`), die beim Neuladen erha
 - Aufteilung nach **Anzahl Teams** oder **Personen pro Team**; kopieren, drucken, neu mischen.
 - **"Wofür sind die Gruppen?"**: *Kein Sport*, *Sport — allgemeines Spiel* (Sportlichkeit fair verteilen) oder eine **konkrete Sportart** (erscheint, sobald Hobbys erfasst sind). Optional werden auch Geschlechter fair verteilt.
 - **"Nicht zusammen"-Regeln** halten Paare in verschiedenen Teams.
+- Werden Klassen mit gleichen Namen kombiniert, erhalten die Namen die Klasse in Klammern ("Anna (7a)"), damit Anzeige und Regeln eindeutig bleiben.
 - **"Wer ist dran?"** zieht zufällig eine Person aus der Teilnehmerliste und zeigt sie gross im Präsentationsmodus. Niemand kommt doppelt dran, bis alle einmal gezogen wurden. **Leertaste** zieht die nächste Person.
 - Sportlichkeit und Hobbys sind im Teams-Reiter bewusst **nicht sichtbar**, damit sie beim Projizieren nicht auffallen.
+
+### Timer
+Über **"Timer"** oben rechts: **Countdown** (Vorgaben von 30 s bis 15 min, ±1 min) oder **Stoppuhr**, gross für den Beamer. Mit mehreren **Stationen/Runden** startet nach jedem Ablauf automatisch die nächste Runde; sind Teams erstellt, zeigt die App, welches Team an welcher Station ist. Signalton am Ende, der Bildschirm bleibt während des Laufens an. **Leertaste** = Start/Pause, **R** = zurücksetzen.
 
 ### Präsentationsmodus
 Bei Sitzordnung und Teams zeigt **"Präsentieren"** das Ergebnis im Vollbild für den Beamer: grosse Namen, keine Sport- oder Geschlechtshinweise. **Esc** oder "Schliessen" beendet.
 
 ### Backup und Datendatei
 - **Komplett-Backup** (Fusszeile): alle Daten als JSON sichern, **optional mit Passwort verschlüsselt** (AES-GCM), und auf einem anderen Gerät wiederherstellen.
+- **Rückgängig** ist nur möglich, solange seither nichts anderes geändert wurde (sonst gingen spätere Änderungen verloren).
 - **Backup-Erinnerung:** Wurde seit 30 Tagen kein Backup erstellt (und ist keine Datendatei verbunden), erinnert die App höchstens einmal pro Woche daran. Zusätzlich bittet sie den Browser, die Daten nicht automatisch zu löschen (`navigator.storage.persist`).
 - **Automatische Datendatei** (Chrome/Edge): Eine JSON-Datei auf der Festplatte verbinden, z.B. im Dokumente-Ordner. Danach wird jede Änderung automatisch dorthin geschrieben und beim Start geladen. Weicht die Datei vom Browser-Stand ab, fragt die App, welcher gelten soll. In Safari und Firefox fehlt die Funktion; dort gelten `localStorage` und das manuelle Backup.
 
@@ -124,6 +136,7 @@ Struktur:
 - `app.js` — UI und Zustand, nutzt `window.TG` aus `core.js`.
 - `vendor/` — gebündelte Assets. `vendor/tailwind.css` und `vendor/fontawesome/css|webfonts/` sind Build-Artefakte (`npm run build:css` bzw. `npm run build:icons`) und werden mit eingecheckt. Die Original-Dateien von Font Awesome liegen in `vendor/fontawesome/source/`.
 - `scripts/build-icons.py` — sucht die verwendeten `fa-…`-Symbole in `index.html`/`app.js` und erzeugt CSS und Schrift nur mit diesen.
+- `theme.js` — setzt Hell/Dunkel vor dem ersten Zeichnen (kein Aufblitzen).
 - `sw.js` / `manifest.webmanifest` / `icon.svg` / `icons/` — PWA und Offline-Betrieb. Bei geänderten Dateinamen die Liste und `CACHE_NAME` in `sw.js` anpassen.
 - `tests/core.test.js` — Unit-Tests (`node:test`).
 

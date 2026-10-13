@@ -7,8 +7,9 @@ test('sanitizeGender lässt nur gültige Werte durch', () => {
     assert.equal(TG.sanitizeGender('female'), 'female');
     assert.equal(TG.sanitizeGender('male'), 'male');
     assert.equal(TG.sanitizeGender('diverse'), 'diverse');
-    assert.equal(TG.sanitizeGender('<img onerror=x>'), 'diverse');
-    assert.equal(TG.sanitizeGender(undefined), 'diverse');
+    assert.equal(TG.sanitizeGender('unknown'), 'unknown');
+    assert.equal(TG.sanitizeGender('<img onerror=x>'), 'unknown');
+    assert.equal(TG.sanitizeGender(undefined), 'unknown');
 });
 
 // --- getSemester (Schweizer Schuljahr) ---
@@ -42,16 +43,16 @@ test('bulkParse: Kleinbuchstaben-Tags werden erkannt', () => {
     ]);
 });
 
-test('bulkParse: "s" allein = sportlich, Standard weiblich', () => {
+test('bulkParse: "s" allein = sportlich, Geschlecht ohne Angabe', () => {
     const { out } = collect('Mia s');
-    assert.deepEqual(out, [{ name: 'Mia', gender: 'female', sporty: true }]);
+    assert.deepEqual(out, [{ name: 'Mia', gender: 'unknown', sporty: true }]);
 });
 
 test('bulkParse: Grossbuchstaben-Initialen bleiben Namensbestandteil', () => {
     const { out, res } = collect('Anna M\nMia S');
     assert.deepEqual(out, [
-        { name: 'Anna M', gender: 'female', sporty: false },
-        { name: 'Mia S', gender: 'female', sporty: false }
+        { name: 'Anna M', gender: 'unknown', sporty: false },
+        { name: 'Mia S', gender: 'unknown', sporty: false }
     ]);
     assert.equal(res.defaults, 2);
 });
@@ -85,7 +86,7 @@ test('bulkParse: Initial vor Tag bleibt erhalten ("Anna M w")', () => {
     const { out } = collect('Anna M w\nMia S s');
     assert.deepEqual(out, [
         { name: 'Anna M', gender: 'female', sporty: false },
-        { name: 'Mia S', gender: 'female', sporty: true }
+        { name: 'Mia S', gender: 'unknown', sporty: true }
     ]);
 });
 
@@ -106,7 +107,7 @@ test('bulkParse: Klassenkürzel in eckigen Klammern', () => {
         { name: 'Max', gender: 'male', sporty: true, classTag: '7a' },
         { name: 'Anna', gender: 'female', sporty: false, classTag: '7b' },
         { name: 'Kim', gender: 'diverse', sporty: false, classTag: '' },
-        { name: 'Lea', gender: 'female', sporty: false, classTag: '8c' }
+        { name: 'Lea', gender: 'unknown', sporty: false, classTag: '8c' }
     ]);
 });
 
@@ -459,7 +460,7 @@ test('validateBackup: normalisiert ungültige Werte statt sie zu übernehmen', (
     b.attendanceData['1']['2026-06-29'].records['1'].reasonCategory = 'Erfunden';
     const res = TG.validateBackup(b);
     const evil = res.classes[0].students.find(s => s.name === 'Evil');
-    assert.equal(evil.gender, 'diverse');
+    assert.equal(evil.gender, 'unknown');
     assert.equal(evil.sporty, false);
     assert.equal(res.classes[0].schedule.length, 1);
     assert.equal(res.attendanceData['1']['not-a-date'], undefined);
@@ -695,4 +696,25 @@ test('generateSeating: "Nicht zusammen"-Paar sitzt nicht nebeneinander (grosses 
             assert.ok(Math.abs(pa.x - pb.x) > 1 || Math.abs(pa.y - pb.y) > 1, 'Paar sitzt benachbart');
         }
     }
+});
+
+test('parseCsvImport: Geschlecht w/f = weiblich, leer = ohne Angabe', () => {
+    const rows = TG.parseCsvImport('7a;Anna;w\n7a;Eva;female\n7a;Kim\n7a;Max;männlich');
+    assert.deepEqual(rows.map(r => r.gender), ['female', 'female', 'unknown', 'male']);
+});
+
+test('distributeTeams: Personen ohne Geschlechtsangabe werden gleichmässig verteilt', () => {
+    const persons = Array.from({ length: 8 }, (_, i) => ({ name: 'P' + i, gender: i < 4 ? 'unknown' : 'female', sporty: false }));
+    for (let run = 0; run < 20; run++) {
+        const teams = TG.distributeTeams(persons, 2, { balanceGender: true });
+        teams.forEach(team => assert.equal(team.filter(p => p.gender === 'unknown').length, 2));
+    }
+});
+
+test('uniqueDisplayNames: doppelte Namen bekommen die Klasse, sonst eine Nummer', () => {
+    assert.deepEqual(TG.uniqueDisplayNames([
+        { name: 'Anna', group: '7a' }, { name: 'Ben', group: '7a' }, { name: 'anna', group: '7b' },
+        { name: 'Lena M', group: '7a' }, { name: 'Lena M', group: '7a' }
+    ]), ['Anna (7a)', 'Ben', 'anna (7b)', 'Lena M', 'Lena M 2']);
+    assert.deepEqual(TG.uniqueDisplayNames([{ name: 'Mia' }, { name: 'Mia' }]), ['Mia', 'Mia 2']);
 });

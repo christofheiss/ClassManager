@@ -4,7 +4,7 @@ const {
     sanitizeGender, sanitizeStatus, parseHobbies, sanitizeHobbies,
     todayStr, getWeekdayIndex, getSemester, formatDateDisplay,
     bulkParse, parseCsvImport, parseAttendanceCsv, escapeCsv, pointsToGrade, computePointsTotal, computePointsSeries,
-    distributeTeams, enforceApart, validateBackup, generateSeating, cleanSeatingPlan
+    distributeTeams, enforceApart, uniqueDisplayNames, validateBackup, generateSeating, cleanSeatingPlan
 } = window.TG;
 
 // STATE
@@ -34,8 +34,10 @@ let seatingData = {}, seatingIdCounter = 1;
 const GENDER_ICONS = {
     female:  '<i class="fas fa-venus text-pink-500" title="Weiblich" aria-hidden="true"></i><span class="sr-only">weiblich</span>',
     male:    '<i class="fas fa-mars text-blue-500" title="Männlich" aria-hidden="true"></i><span class="sr-only">männlich</span>',
-    diverse: '<i class="fas fa-genderless text-purple-500" title="Divers" aria-hidden="true"></i><span class="sr-only">divers</span>'
+    diverse: '<i class="fas fa-genderless text-purple-500" title="Divers" aria-hidden="true"></i><span class="sr-only">divers</span>',
+    unknown: '<i class="fas fa-circle-question text-gray-300" title="Geschlecht ohne Angabe" aria-hidden="true"></i><span class="sr-only">Geschlecht ohne Angabe</span>'
 };
+const GENDER_LABELS = { female: 'Weiblich', male: 'Männlich', diverse: 'Divers', unknown: 'Ohne Angabe' };
 function genderIconEl(g) { const span = document.createElement('span'); span.innerHTML = GENDER_ICONS[sanitizeGender(g)]; return span; }
 // Tabellenzelle mit Geschlechts-Symbol, Name und ggf. "ehemalig" (Flex im inneren div, nicht am td).
 function nameCell(student, former, padCls) {
@@ -78,7 +80,9 @@ const STORE = {
     points:     () => ({ tg2_points: pointsData, tg2_pointsId: pointsIdCounter }),
     seating:    () => ({ tg2_seating: seatingData, tg2_seatingId: seatingIdCounter })
 };
+let dataVersion = 0; // steigt bei jeder gespeicherten Änderung (für sicheres Rückgängig)
 function persist(...parts) {
+    dataVersion++;
     try {
         parts.forEach(part => Object.entries(STORE[part]()).forEach(([k, v]) =>
             localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v))));
@@ -185,7 +189,7 @@ function showToast(message, { undo = null, action = null, duration = 6000 } = {}
     if (undo) action = { label: 'Rückgängig', fn: undo };
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
-    toast.className = 'toast bg-gray-900 text-white text-sm rounded-xl shadow-lg px-4 py-2.5 flex items-center gap-3 fade-in';
+    toast.className = (undo ? 'toast-undo ' : '') + 'toast bg-gray-900 text-white text-sm rounded-xl shadow-lg px-4 py-2.5 flex items-center gap-3 fade-in';
     toast.setAttribute('role', 'status');
     const span = document.createElement('span');
     span.textContent = message;
@@ -215,10 +219,17 @@ function restoreState(snap) {
     refreshAllViews();
 }
 // Führt eine destruktive Änderung aus und bietet danach "Rückgängig" per Toast an.
+// Rückgängig stellt den kompletten früheren Stand her; es ist darum nur möglich, solange
+// seither nichts anderes geändert wurde (sonst gingen diese späteren Änderungen verloren).
 function withUndo(message, mutate) {
     const snap = snapshotState();
     mutate();
-    showToast(message, { undo: () => restoreState(snap) });
+    const version = dataVersion;
+    document.querySelectorAll('#toast-container .toast-undo').forEach(t => t.remove());
+    showToast(message, { undo: () => {
+        if (dataVersion !== version) { showToast('Rückgängig nicht mehr möglich: Inzwischen wurde etwas anderes geändert.'); return; }
+        restoreState(snap);
+    } });
 }
 
 // TABS — der aktive Reiter steht im URL-Hash (#teams), bleibt also beim Neuladen erhalten
@@ -274,6 +285,31 @@ function fillClassSelect(sel, list, selectedId, label = c => c.name) {
 }
 const withCount = c => `${c.name} (${c.students.length} SuS)`;
 const findClass = id => classes.find(c => c.id === id) || null;
+
+// GEMEINSAME AKTUELLE KLASSE — wer in einem Reiter eine Klasse wählt, findet sie in den anderen
+// Reitern wieder vor (sofern sie dort vorkommt und keine ungespeicherten Eingaben offen sind).
+let preferredClassId = (() => { try { return parseInt(localStorage.getItem('tg2_currentClass'), 10) || null; } catch (e) { return null; } })();
+function preferClass(id) {
+    if (id === null || isNaN(id)) return;
+    preferredClassId = id;
+    try { localStorage.setItem('tg2_currentClass', String(id)); } catch (e) {}
+}
+// Bevorzugte Klasse, falls sie in list vorkommt, sonst fallback
+const preferredIn = (list, fallback) => preferredClassId !== null && list.some(c => c.id === preferredClassId) ? preferredClassId : fallback;
+
+// Welche Klasse hat laut Wochenplan gerade Unterricht? (Start vor höchstens 90 bzw. in höchstens 30 Minuten)
+function scheduledNowClass() {
+    const now = new Date();
+    const weekday = (now.getDay() + 6) % 7, minutes = now.getHours() * 60 + now.getMinutes();
+    let best = null, bestDiff = Infinity;
+    classes.forEach(c => (c.schedule || []).forEach(e => {
+        if (e.weekday !== weekday) return;
+        const [h, m] = e.time.split(':').map(Number);
+        const diff = minutes - (h * 60 + m);
+        if (diff >= -30 && diff <= 90 && Math.abs(diff) < bestDiff) { best = { cls: c, time: e.time }; bestDiff = Math.abs(diff); }
+    }));
+    return best;
+}
 
 // WOCHENPLAN (gemeinsame Helfer für Klassen-Formular & Detailansicht)
 function createScheduleRow(container, entry) {
@@ -418,7 +454,7 @@ function renderClassList() {
     });
 }
 
-function selectClass(id) { activeClassId = id; renderClassList(); renderClassDetail(); }
+function selectClass(id) { activeClassId = id; preferClass(id); renderClassList(); renderClassDetail(); }
 
 // BEISPIELKLASSE — zum Ausprobieren aller Funktionen ohne eigene Daten (später einfach löschen).
 const DEMO_STUDENTS = [
@@ -623,70 +659,101 @@ function renderStudentList(cls) {
         li.innerHTML = '<i class="fas fa-user-plus text-2xl mb-2 opacity-30 block" aria-hidden="true"></i>Noch keine Schüler eingetragen.';
         ul.appendChild(li); return;
     }
+    const frag = document.createDocumentFragment();
     cls.students.forEach(s => {
         const li = document.createElement('li');
-        li.className = 'flex items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm';
-        const left = document.createElement('div'); left.className = 'flex items-center gap-2 min-w-0';
-        const icon = genderIconEl(s.gender);
+        li.className = 'flex items-center bg-white rounded-lg border border-gray-100 shadow-sm';
+        // Ganze Zeile öffnet den Bearbeiten-Dialog
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'student-row flex items-center gap-2 min-w-0 flex-1 text-left p-2 rounded-lg';
+        btn.setAttribute('aria-label', `${s.name} bearbeiten`);
         const nameSpan = document.createElement('span'); nameSpan.className = 'text-sm text-gray-700 truncate'; nameSpan.textContent = s.name;
-        left.appendChild(icon); left.appendChild(nameSpan);
+        btn.append(genderIconEl(s.gender), nameSpan);
+        if (s.sporty) {
+            const sp = document.createElement('span');
+            sp.className = 'text-emerald-600 text-xs flex-shrink-0'; sp.title = 'Sportlich';
+            sp.innerHTML = '<i class="fas fa-person-running" aria-hidden="true"></i><span class="sr-only">sportlich</span>';
+            btn.appendChild(sp);
+        }
         if (s.classTag) {
             const tagBadge = document.createElement('span');
             tagBadge.className = 'text-xs bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.5 rounded-full flex-shrink-0';
             tagBadge.textContent = s.classTag;
-            left.appendChild(tagBadge);
+            btn.appendChild(tagBadge);
         }
-        if (Array.isArray(s.hobbies) && s.hobbies.length) {
+        if (s.hobbies.length) {
             const hobbyBadge = document.createElement('span');
             hobbyBadge.className = 'text-xs bg-teal-50 text-teal-700 border border-teal-200 px-1.5 py-0.5 rounded-full truncate max-w-[9rem]';
             hobbyBadge.textContent = s.hobbies.join(', ');
-            hobbyBadge.title = `Hobbys/Sportarten: ${s.hobbies.join(', ')}`;
-            left.appendChild(hobbyBadge);
+            btn.appendChild(hobbyBadge);
         }
-        const actions = document.createElement('div');
-        actions.className = 'flex items-center gap-0.5 flex-shrink-0';
-        const hobbyBtn = document.createElement('button');
-        hobbyBtn.className = `text-xs p-1 transition-colors ${Array.isArray(s.hobbies) && s.hobbies.length ? 'text-teal-500 hover:text-teal-700' : 'text-gray-200 hover:text-teal-500'}`;
-        hobbyBtn.innerHTML = '<i class="fas fa-futbol" aria-hidden="true"></i>';
-        hobbyBtn.title = Array.isArray(s.hobbies) && s.hobbies.length ? `Hobbys "${s.hobbies.join(', ')}" bearbeiten` : 'Hobbys/Sportarten erfassen';
-        hobbyBtn.setAttribute('aria-label', `Hobbys/Sportarten von ${s.name} bearbeiten`);
-        hobbyBtn.addEventListener('click', async () => {
-            const val = await uiPrompt(`Hobbys/Sportarten für "${s.name}" — durch Komma getrennt (leer = keine):`, {
-                title: 'Hobbys/Sportarten', placeholder: 'z.B. Fussball, Tennis', value: (s.hobbies || []).join(', '),
-                hint: 'Wird bei der Team-Generierung berücksichtigt, wenn dort eine Sportart gewählt ist.'
-            });
-            if (val === null) return;
-            s.hobbies = parseHobbies(val);
-            saveClasses(); renderStudentList(cls);
-        });
-        const tagBtn = document.createElement('button');
-        tagBtn.className = 'text-gray-200 hover:text-sky-500 text-xs p-1 transition-colors';
-        tagBtn.innerHTML = '<i class="fas fa-tag" aria-hidden="true"></i>';
-        tagBtn.title = s.classTag ? `Klassenkürzel "${s.classTag}" ändern` : 'Klassenkürzel setzen';
-        tagBtn.setAttribute('aria-label', `Klassenkürzel von ${s.name} bearbeiten`);
-        tagBtn.addEventListener('click', async () => {
-            const val = await uiPrompt(`Klassenkürzel für "${s.name}" (leer = entfernen):`, { title: 'Klassenkürzel', placeholder: 'z.B. 7a', value: s.classTag || '' });
-            if (val === null) return;
-            s.classTag = val.trim().slice(0, 20);
-            saveClasses(); renderStudentList(cls);
-        });
-        const sportyBtn = document.createElement('button');
-        sportyBtn.className = `text-xs p-1 rounded transition-colors ${s.sporty ? 'text-emerald-500 hover:text-emerald-700' : 'text-gray-200 hover:text-emerald-400'}`;
-        sportyBtn.innerHTML = '<i class="fas fa-person-running" aria-hidden="true"></i>';
-        sportyBtn.title = s.sporty ? 'Sportlich (klicken zum Ändern)' : 'Nicht sportlich (klicken zum Ändern)';
-        sportyBtn.setAttribute('aria-label', `${s.name}: ${s.sporty ? 'sportlich' : 'nicht sportlich'} — umschalten`);
-        sportyBtn.setAttribute('aria-pressed', String(s.sporty === true));
-        sportyBtn.addEventListener('click', () => { s.sporty = !s.sporty; saveClasses(); renderStudentList(cls); });
-        const delBtn = document.createElement('button');
-        delBtn.className = 'text-gray-200 hover:text-red-500 text-xs p-1 transition-colors';
-        delBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
-        delBtn.title = 'Schüler(in) entfernen';
-        delBtn.setAttribute('aria-label', `${s.name} entfernen`);
-        delBtn.addEventListener('click', () => removeStudent(s.id));
-        actions.appendChild(tagBtn); actions.appendChild(hobbyBtn); actions.appendChild(sportyBtn); actions.appendChild(delBtn);
-        li.appendChild(left); li.appendChild(actions); ul.appendChild(li);
+        const pen = document.createElement('span');
+        pen.className = 'ml-auto text-indigo-400 text-xs px-1 flex-shrink-0';
+        pen.innerHTML = '<i class="fas fa-pen" aria-hidden="true"></i>';
+        btn.appendChild(pen);
+        btn.addEventListener('click', () => openStudentDialog(cls, s));
+        li.appendChild(btn);
+        frag.appendChild(li);
     });
+    ul.appendChild(frag);
 }
+
+// BEARBEITEN-DIALOG für eine Person: Name, Kürzel, Geschlecht, Hobbys, Sportlich, Entfernen.
+const $sd = document.getElementById('student-dialog');
+let sdTarget = null, sdPrevFocus = null;
+function openStudentDialog(cls, s) {
+    sdTarget = { cls, s }; sdPrevFocus = document.activeElement;
+    document.getElementById('sd-name').value = s.name;
+    document.getElementById('sd-tag').value = s.classTag || '';
+    document.getElementById('sd-hobbies').value = s.hobbies.join(', ');
+    document.getElementById('sd-sporty').checked = s.sporty === true;
+    document.querySelectorAll('input[name="sd-gender"]').forEach(r => { r.checked = r.value === sanitizeGender(s.gender); });
+    document.getElementById('sd-error').classList.add('hidden');
+    $sd.classList.remove('hidden');
+    document.getElementById('sd-name').focus();
+}
+function closeStudentDialog() {
+    $sd.classList.add('hidden'); sdTarget = null;
+    if (sdPrevFocus && sdPrevFocus.isConnected) sdPrevFocus.focus();
+}
+document.getElementById('sd-cancel').addEventListener('click', closeStudentDialog);
+$sd.addEventListener('mousedown', e => { if (e.target === $sd) closeStudentDialog(); });
+$sd.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closeStudentDialog(); } });
+document.getElementById('sd-remove').addEventListener('click', () => {
+    if (!sdTarget) return;
+    const id = sdTarget.s.id;
+    closeStudentDialog();
+    removeStudent(id);
+});
+document.getElementById('student-dialog-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!sdTarget) return;
+    const { cls, s } = sdTarget;
+    const name = document.getElementById('sd-name').value.trim();
+    const err = document.getElementById('sd-error');
+    if (!name) { err.textContent = 'Bitte einen Namen eingeben.'; err.classList.remove('hidden'); return; }
+    if (cls.students.some(o => o !== s && o.name.toLowerCase() === name.toLowerCase())) {
+        err.textContent = `"${name}" gibt es in dieser Klasse schon. Tipp: mit Initial unterscheiden, z.B. "${name} M".`;
+        err.classList.remove('hidden'); return;
+    }
+    const oldName = s.name;
+    s.name = name;
+    s.classTag = document.getElementById('sd-tag').value.trim().slice(0, 20);
+    s.hobbies = parseHobbies(document.getElementById('sd-hobbies').value);
+    s.sporty = document.getElementById('sd-sporty').checked;
+    const g = document.querySelector('input[name="sd-gender"]:checked');
+    s.gender = sanitizeGender(g ? g.value : s.gender);
+    // "Nicht zusammen"-Regeln laufen über den Namen: bei Umbenennung mitziehen
+    if (oldName !== name) {
+        const k = oldName.trim().toLowerCase();
+        apartPairs = apartPairs.map(pair => pair.map(n => n.trim().toLowerCase() === k ? name : n));
+        saveApartPairs();
+    }
+    saveClasses();
+    closeStudentDialog();
+    renderClassDetail();
+});
 
 document.getElementById('sort-alpha-btn').addEventListener('click', () => {
     const cls = findClass(activeClassId);
@@ -773,7 +840,7 @@ $importFileInput.addEventListener('change', () => {
                         if (!sName) return;
                         if (cls.students.find(st => st.name.toLowerCase() === sName.toLowerCase())) return;
                         cls.students.push({
-                            id: stuIdCounter++, name: sName, gender: sanitizeGender(obj.gender || 'female'), sporty: obj.sporty === true,
+                            id: stuIdCounter++, name: sName, gender: sanitizeGender(obj.gender), sporty: obj.sporty === true,
                             classTag: typeof obj.classTag === 'string' ? obj.classTag.slice(0, 20).trim() : '',
                             hobbies: sanitizeHobbies(obj.hobbies)
                         });
@@ -811,6 +878,7 @@ function updateDirtyHint() {
 }
 function markAttendanceDirty() {
     attendanceDirty = true;
+    document.getElementById('attendance-saved-msg').classList.add('hidden');
     updateDirtyHint();
 }
 async function confirmDiscardAttendance() {
@@ -823,6 +891,20 @@ window.addEventListener('beforeunload', e => {
     if (attendanceDirty || examDirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// Hinweis "Laut Wochenplan jetzt: 7a", wenn gerade eine andere Klasse gewählt ist
+function renderScheduleSuggestion() {
+    const box = document.getElementById('attendance-suggest');
+    const now = scheduledNowClass();
+    const show = now && now.cls.id !== selAttendClassId;
+    box.classList.toggle('hidden', !show);
+    if (!show) return;
+    document.getElementById('attendance-suggest-text').textContent = `Laut Wochenplan jetzt: ${now.cls.name} (${now.time} Uhr)`;
+    document.getElementById('attendance-suggest-btn').onclick = () => {
+        $attendanceSelect.value = String(now.cls.id);
+        $attendanceSelect.dispatchEvent(new Event('change'));
+    };
+}
+
 function showAttendanceContent(on) {
     document.getElementById('attendance-empty').classList.toggle('hidden', on);
     document.getElementById('attendance-content').classList.toggle('hidden', !on);
@@ -831,7 +913,14 @@ function showAttendanceContent(on) {
 // Beim Betreten des Reiters: Auswahl aktualisieren. Ungespeicherte Eingaben bleiben erhalten,
 // werden aber an die aktuelle Schülerliste angepasst (neue Schüler(innen) = anwesend).
 function enterAttendanceTab() {
+    if (!attendanceDirty) {
+        const now = scheduledNowClass();
+        // Ohne Auswahl die Klasse vorschlagen, die gerade laut Wochenplan Unterricht hat
+        selAttendClassId = preferredIn(classes, selAttendClassId);
+        if (selAttendClassId === null && now) selAttendClassId = now.cls.id;
+    }
     selAttendClassId = fillClassSelect($attendanceSelect, classes, selAttendClassId, withCount);
+    renderScheduleSuggestion();
     lastAttendanceSelectValue = $attendanceSelect.value;
     if (!$attendanceDate.value) $attendanceDate.value = todayStr();
     lastAttendanceDate = $attendanceDate.value;
@@ -851,6 +940,8 @@ $attendanceSelect.addEventListener('change', async function() {
     lastAttendanceSelectValue = this.value;
     const id = parseInt(this.value, 10);
     selAttendClassId = isNaN(id) ? null : id;
+    preferClass(selAttendClassId);
+    renderScheduleSuggestion();
     if (selAttendClassId === null) currentSessionRecords = {};
     showAttendanceContent(selAttendClassId !== null);
     if (selAttendClassId !== null) loadAttendanceSession();
@@ -914,6 +1005,8 @@ function updateAttendanceCounts(cls) {
     document.getElementById('present-count').textContent = participatingCount + injuredCount;
     document.getElementById('injured-count-note').textContent = injuredCount > 0 ? `davon ${injuredCount} verletzt (machen nicht mit)` : '';
     document.getElementById('load-to-teams-label').textContent = `Teams erstellen mit ${participatingCount} Schüler${participatingCount === 1 ? '' : 'n'}`;
+    document.getElementById('bar-present').textContent = participatingCount + injuredCount;
+    document.getElementById('bar-total').textContent = cls.students.length;
 }
 
 function renderAttendanceGrid() {
@@ -991,10 +1084,14 @@ function buildAttendanceCard(cls, s) {
     return card;
 }
 
-document.getElementById('save-attendance-btn').addEventListener('click', () => {
+document.getElementById('save-attendance-btn').addEventListener('click', async () => {
     const cls = findClass(selAttendClassId);
     if (!cls) return;
     const dateStr = $attendanceDate.value || todayStr();
+    if (dateStr > todayStr()) {
+        const ok = await uiConfirm(`Das Datum ${formatDateDisplay(dateStr)} liegt in der Zukunft. Trotzdem speichern?`, { title: 'Datum prüfen', okLabel: 'Trotzdem speichern' });
+        if (!ok) { $attendanceDate.focus(); return; }
+    }
     if (!attendanceData[cls.id]) attendanceData[cls.id] = {};
     const records = {};
     Object.keys(currentSessionRecords).forEach(id => { records[id] = { ...currentSessionRecords[id] }; });
@@ -1113,7 +1210,8 @@ async function loadPersonsIntoTeams(list, bannerText) {
         const ok = await uiConfirm(`Die aktuelle Teilnehmerliste (${persons.length} manuell erfasste Person(en)) wird ersetzt. Fortfahren?`, { okLabel: 'Ersetzen' });
         if (!ok) return;
     }
-    persons = list.map(s => ({ id: personIdCounter++, name: s.name, gender: s.gender, sporty: s.sporty === true, hobbies: sanitizeHobbies(s.hobbies) }));
+    const names = uniqueDisplayNames(list.map(s => ({ name: s.name, group: s.group })));
+    persons = list.map((s, i) => ({ id: personIdCounter++, name: names[i], gender: sanitizeGender(s.gender), sporty: s.sporty === true, hobbies: sanitizeHobbies(s.hobbies) }));
     personsManual = false;
     savePersons();
     document.getElementById('source-banner-text').textContent = bannerText;
@@ -1144,11 +1242,11 @@ document.getElementById('load-to-teams-btn').addEventListener('click', async () 
 // TAB: AUSWERTUNG
 function enterStatsTab() {
     const sel = document.getElementById('stats-class-select');
-    fillClassSelect(sel, classes, parseInt(sel.value, 10));
+    fillClassSelect(sel, classes, preferredIn(classes, parseInt(sel.value, 10)));
     renderStats();
 }
 
-document.getElementById('stats-class-select').addEventListener('change', renderStats);
+document.getElementById('stats-class-select').addEventListener('change', e => { preferClass(parseInt(e.target.value, 10)); renderStats(); });
 document.getElementById('stats-semester-select').addEventListener('change', renderStats);
 document.getElementById('stats-classtag-select').addEventListener('change', renderStats);
 
@@ -1374,6 +1472,10 @@ function showExamsContent(on) {
 }
 // Beim Betreten: Auswahl prüfen (Klasse gelöscht?) und Tabelle mit aktueller Schülerliste zeichnen.
 function enterExamsTab() {
+    if (!examDirty) {
+        const pref = preferredIn(classes, selExamClassId);
+        if (pref !== selExamClassId) { selExamClassId = pref; selExamId = null; }
+    }
     selExamClassId = fillClassSelect($examsSelect, classes, selExamClassId);
     showExamsContent(selExamClassId !== null);
     if (selExamClassId === null) { selExamId = null; examDirty = false; updateExamDirtyHint(); return; }
@@ -1396,6 +1498,7 @@ $examsSelect.addEventListener('change', async function() {
     if (!(await confirmDiscardExam())) { this.value = selExamClassId === null ? '' : String(selExamClassId); return; }
     const id = parseInt(this.value, 10);
     selExamClassId = isNaN(id) ? null : id; selExamId = null;
+    preferClass(selExamClassId);
     showExamsContent(selExamClassId !== null);
     if (selExamClassId === null) return;
     renderExamList();
@@ -1540,7 +1643,7 @@ function renderExamDetail() {
             gradeTd.textContent = grade === null ? '–' : grade.toFixed(1);
             gradeTd.className = `text-center px-3 py-1.5 font-semibold exam-grade-cell ${gradeColorClass(grade)}`;
         };
-        input.addEventListener('input', () => { examDirty = true; updateExamDirtyHint(); updateGradeCell(); });
+        input.addEventListener('input', () => { examDirty = true; updateExamDirtyHint(); updateGradeCell(); input.classList.remove('input-invalid'); input.removeAttribute('aria-invalid'); });
         updateGradeCell();
         inputTd.appendChild(input);
         tr.appendChild(nameTd); tr.appendChild(tagTd); tr.appendChild(inputTd); tr.appendChild(gradeTd);
@@ -1555,20 +1658,25 @@ document.getElementById('save-exam-results-btn').addEventListener('click', async
     if (!cls || !exam) return;
     const invalid = [];
     const newResults = {};
+    // Ehemalige ohne Eingabefeld behalten ihr Ergebnis; ungültige Eingaben überschreiben nie einen gespeicherten Wert.
+    const max = exam.mode === 'points' ? exam.maxPoints : 6;
+    const min = exam.mode === 'points' ? 0 : 1;
     document.querySelectorAll('#exam-results-body .exam-result-input').forEach(input => {
-        if (input.value === '') return;
+        const id = input.dataset.studentId;
         const v = parseFloat(input.value);
-        const max = exam.mode === 'points' ? exam.maxPoints : 6;
-        const min = exam.mode === 'points' ? 0 : 1;
-        if (!isFinite(v) || v < min || v > max) { invalid.push(input); return; }
-        newResults[input.dataset.studentId] = v;
+        const bad = input.value !== '' && (!isFinite(v) || v < min || v > max);
+        input.classList.toggle('input-invalid', bad);
+        input.setAttribute('aria-invalid', String(bad));
+        if (bad) { invalid.push(input); if (exam.results[id] !== undefined) newResults[id] = exam.results[id]; return; }
+        if (input.value !== '') newResults[id] = v;
     });
-    if (invalid.length) {
-        await uiAlert(`${invalid.length} Eingabe(n) sind ungültig (${exam.mode === 'points' ? `0–${exam.maxPoints} Punkte` : 'Note 1–6'}) und wurden nicht gespeichert.`, 'Prüfung');
-    }
     exam.results = newResults;
     saveExams();
-    examDirty = false; updateExamDirtyHint();
+    examDirty = invalid.length > 0; updateExamDirtyHint();
+    if (invalid.length) {
+        await uiAlert(`${invalid.length} Eingabe(n) sind ungültig (erlaubt: ${exam.mode === 'points' ? `0 bis ${exam.maxPoints} Punkte` : 'Note 1 bis 6'}) und rot markiert. Dort gilt weiterhin der bisher gespeicherte Wert, alle anderen Eingaben sind gespeichert.`, 'Prüfung');
+        invalid[0].focus();
+    }
     renderExamList();
     renderExamStats(cls, exam);
     showToast('Prüfungsergebnisse gespeichert.');
@@ -1664,7 +1772,8 @@ function getPointsData(classId) {
 }
 
 function enterPointsTab() {
-    selPointsClassId = fillClassSelect($pointsSelect, classes.filter(c => c.collectsPoints === true), selPointsClassId);
+    const pointClasses = classes.filter(c => c.collectsPoints === true);
+    selPointsClassId = fillClassSelect($pointsSelect, pointClasses, preferredIn(pointClasses, selPointsClassId));
     const on = selPointsClassId !== null;
     document.getElementById('points-empty').classList.toggle('hidden', on);
     document.getElementById('points-content').classList.toggle('hidden', !on);
@@ -1675,6 +1784,7 @@ function enterPointsTab() {
 $pointsSelect.addEventListener('change', function() {
     const id = parseInt(this.value, 10);
     selPointsClassId = isNaN(id) ? null : id;
+    preferClass(selPointsClassId);
     enterPointsTab();
 });
 
@@ -2018,12 +2128,16 @@ function currentSeatingClass() { return findClass(selSeatingClassId); }
 
 function refreshSeatingSelect() {
     // Sitzordnungen gibt es nur für Klassen mit Unterricht im Klassenzimmer
-    selSeatingClassId = fillClassSelect($seatingSelect, classes.filter(c => classKind(c) !== 'sport'), selSeatingClassId, withCount);
+    const roomClasses = classes.filter(c => classKind(c) !== 'sport');
+    const pref = preferredIn(roomClasses, selSeatingClassId);
+    if (pref !== selSeatingClassId) seatSel = null;
+    selSeatingClassId = fillClassSelect($seatingSelect, roomClasses, pref, withCount);
     renderSeating();
 }
 $seatingSelect.addEventListener('change', () => {
     const id = parseInt($seatingSelect.value, 10);
     selSeatingClassId = isNaN(id) ? null : id;
+    preferClass(selSeatingClassId);
     seatSel = null;
     renderSeating();
 });
@@ -2058,7 +2172,7 @@ function renderSeating() {
     });
     document.getElementById('seating-mode-hint').textContent = seatMode === 'edit'
         ? 'Auf eine leere Zelle klicken, um einen Tisch zu setzen — auf einen Tisch klicken, um ihn zu entfernen.'
-        : 'Zwei Tische nacheinander anklicken, um die Personen zu tauschen. Person unten wählen und auf einen Tisch klicken, um sie zu setzen. Das Schloss fixiert einen Platz.';
+        : 'Personen auf einen anderen Tisch ziehen (oder zwei Tische nacheinander anklicken), um sie zu tauschen. Von "Ohne Platz" auf einen Tisch ziehen, um sie zu setzen. Das Schloss fixiert einen Platz.';
     document.getElementById('seating-print-title').textContent = `Sitzordnung ${cls.name}`;
 
     $seatingGrid.style.gridTemplateColumns = `repeat(${plan.cols}, minmax(0, 1fr))`;
@@ -2086,12 +2200,13 @@ function renderSeating() {
         btn.className = 'seat-desk' + (stu ? ' seat-' + sanitizeGender(stu.gender) : ' seat-empty')
             + (d.l ? ' seat-locked' : '') + (seatSel && seatSel.kind === 'desk' && seatSel.i === i ? ' seat-selected' : '');
         btn.textContent = stu ? stu.name : '';
+        if (stu && seatMode === 'seat' && !d.l) btn.dataset.drag = '1';
         btn.setAttribute('aria-label', seatMode === 'edit' ? `Tisch entfernen (Spalte ${x + 1}, Reihe ${y + 1})` : (stu ? `${stu.name}, Platz auswählen oder tauschen` : 'Leerer Tisch'));
         wrap.appendChild(btn);
         if (stu && seatMode === 'seat') {
             const lock = document.createElement('button');
             lock.type = 'button'; lock.dataset.lock = i; lock.className = 'seat-lock' + (d.l ? ' on' : '');
-            lock.innerHTML = `<i class="fas fa-${d.l ? 'lock' : 'lock-open'}" aria-hidden="true"></i>`;
+            lock.innerHTML = `<i class="fas ${d.l ? 'fa-lock' : 'fa-lock-open'}" aria-hidden="true"></i>`;
             lock.setAttribute('aria-label', d.l ? `Platz von ${stu.name} lösen` : `Platz von ${stu.name} fixieren`);
             wrap.appendChild(lock);
         }
@@ -2192,6 +2307,78 @@ document.getElementById('seating-unseated').addEventListener('click', e => {
     if (seatMode === 'edit') seatMode = 'seat';
     renderSeating();
 });
+
+// ZIEHEN UND ABLEGEN (Maus, Stift und Finger über Pointer-Events): Person auf einen Tisch ziehen
+// = tauschen bzw. setzen, auf "Ohne Platz" ziehen = Platz freigeben. Ohne Bewegung bleibt es ein Klick.
+let seatDrag = null, suppressSeatClick = false;
+function seatDropTarget(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const desk = el.closest('#seating-grid [data-desk]');
+    if (desk) return { kind: 'desk', i: parseInt(desk.dataset.desk, 10), el: desk };
+    const pool = el.closest('#seating-unseated');
+    if (pool) return { kind: 'pool', el: pool };
+    return null;
+}
+function onSeatPointerDown(e) {
+    if (e.button !== 0 || seatMode !== 'seat') return;
+    const src = e.target.closest('[data-drag], [data-stu]');
+    if (!src || e.target.closest('[data-lock]')) return;
+    seatDrag = { x: e.clientX, y: e.clientY, src, active: false, ghost: null, over: null,
+        from: src.dataset.stu ? { kind: 'stu', id: parseInt(src.dataset.stu, 10) } : { kind: 'desk', i: parseInt(src.dataset.desk, 10) } };
+}
+document.addEventListener('pointermove', e => {
+    if (!seatDrag) return;
+    if (!seatDrag.active) {
+        if (Math.hypot(e.clientX - seatDrag.x, e.clientY - seatDrag.y) < 6) return;
+        seatDrag.active = true;
+        const g = document.createElement('div');
+        g.className = 'seat-ghost'; g.textContent = seatDrag.src.textContent;
+        document.body.appendChild(g); seatDrag.ghost = g;
+        seatDrag.src.classList.add('seat-drag-src');
+    }
+    e.preventDefault();
+    seatDrag.ghost.style.transform = `translate(${e.clientX + 8}px, ${e.clientY + 8}px)`;
+    const t = seatDropTarget(e.clientX, e.clientY);
+    const el = t ? t.el : null;
+    if (seatDrag.over !== el) {
+        if (seatDrag.over) seatDrag.over.classList.remove('seat-drop-over');
+        if (el) el.classList.add('seat-drop-over');
+        seatDrag.over = el;
+    }
+}, { passive: false });
+function endSeatDrag(e, cancelled) {
+    const d = seatDrag; seatDrag = null;
+    if (!d || !d.active) return;
+    d.ghost.remove();
+    d.src.classList.remove('seat-drag-src');
+    if (d.over) d.over.classList.remove('seat-drop-over');
+    suppressSeatClick = true; setTimeout(() => { suppressSeatClick = false; }, 0);
+    const cls = currentSeatingClass();
+    const t = cancelled ? null : seatDropTarget(e.clientX, e.clientY);
+    if (!cls || !t) return;
+    const plan = seatingState(cls.id).current;
+    const fromDesk = d.from.kind === 'desk' ? plan.desks[d.from.i] : null;
+    if (t.kind === 'pool') {
+        if (fromDesk && !fromDesk.l) { fromDesk.s = null; }
+    } else {
+        const target = plan.desks[t.i];
+        if (!target || target === fromDesk) return;
+        if (target.l) { showToast('Dieser Platz ist fixiert.'); return; }
+        if (fromDesk) [fromDesk.s, target.s] = [target.s, fromDesk.s];
+        else target.s = d.from.id;
+    }
+    seatSel = null; setSeatMsg('');
+    saveSeating(); renderSeating();
+}
+document.addEventListener('pointerup', e => endSeatDrag(e, false));
+document.addEventListener('pointercancel', e => endSeatDrag(e, true));
+$seatingGrid.addEventListener('pointerdown', onSeatPointerDown);
+document.getElementById('seating-unseated').addEventListener('pointerdown', onSeatPointerDown);
+// Klick direkt nach einem Ziehen nicht zusätzlich als Auswahl werten
+['seating-grid', 'seating-unseated'].forEach(id => document.getElementById(id).addEventListener('click', e => {
+    if (suppressSeatClick) { e.stopImmediatePropagation(); e.preventDefault(); }
+}, true));
 
 function applySeatingSize() {
     const cls = currentSeatingClass();
@@ -2452,7 +2639,7 @@ function closePresentation() {
     if ($present.classList.contains('hidden')) return;
     $present.classList.add('hidden');
     document.body.classList.remove('presenting');
-    presentFit = null; pickerActive = false; clearInterval(pickerTimer);
+    presentFit = null; pickerActive = false; clearInterval(pickerTimer); stopTimerView();
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
 }
 document.getElementById('present-close-btn').addEventListener('click', closePresentation);
@@ -2587,6 +2774,166 @@ document.addEventListener('keydown', e => {
     if (btn) btn.click();
 });
 
+// TIMER — Countdown oder Stoppuhr im Präsentationsmodus. Mit mehreren Runden wird nach jedem
+// Countdown automatisch gewechselt (Stationenbetrieb); sind Teams erstellt, zeigt die Rotation,
+// welches Team an welcher Station ist. Leertaste = Start/Pause, R = zurücksetzen.
+const timer = { mode: 'down', duration: 300, rounds: 1, round: 1, running: false, endAt: 0, elapsed: 0, startedAt: 0, tick: null, wake: null };
+let timerEls = null;
+function fmtTime(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+function timerRemaining() { return timer.running ? (timer.endAt - Date.now()) / 1000 : timer.duration - timer.elapsed; }
+function timerElapsed() { return timer.elapsed + (timer.running ? (Date.now() - timer.startedAt) / 1000 : 0); }
+function beep(times = 3) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        for (let i = 0; i < times; i++) {
+            const osc = ctx.createOscillator(), gain = ctx.createGain();
+            osc.frequency.value = 880; osc.connect(gain); gain.connect(ctx.destination);
+            const t = ctx.currentTime + i * 0.35;
+            gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+            osc.start(t); osc.stop(t + 0.3);
+        }
+        setTimeout(() => ctx.close(), times * 400 + 200);
+    } catch (e) {}
+}
+async function keepScreenOn(on) {
+    try {
+        if (on && !timer.wake && navigator.wakeLock) timer.wake = await navigator.wakeLock.request('screen');
+        if (!on && timer.wake) { await timer.wake.release(); timer.wake = null; }
+    } catch (e) { timer.wake = null; }
+}
+function timerStart() {
+    if (timer.running) return;
+    if (timer.mode === 'down' && timerRemaining() <= 0) timerReset(false);
+    timer.running = true; timer.startedAt = Date.now();
+    timer.endAt = Date.now() + (timer.duration - timer.elapsed) * 1000;
+    timerEls.wrap.classList.remove('timer-done');
+    clearInterval(timer.tick);
+    timer.tick = setInterval(timerUpdate, 200);
+    keepScreenOn(true);
+    timerUpdate();
+}
+function timerPause() {
+    if (!timer.running) return;
+    timer.elapsed = timerElapsed(); timer.running = false;
+    clearInterval(timer.tick); keepScreenOn(false);
+    timerUpdate();
+}
+function timerReset(full = true) {
+    timer.running = false; timer.elapsed = 0; clearInterval(timer.tick); keepScreenOn(false);
+    if (full) timer.round = 1;
+    if (timerEls) { timerEls.wrap.classList.remove('timer-done'); timerUpdate(); }
+}
+function timerUpdate() {
+    if (!timerEls) return;
+    if (timer.mode === 'down' && timer.running && timerRemaining() <= 0) {
+        if (timer.round < timer.rounds) {
+            // Runde vorbei: kurz signalisieren und direkt die nächste Station starten
+            beep(2);
+            timer.round++; timer.elapsed = 0; timer.startedAt = Date.now(); timer.endAt = Date.now() + timer.duration * 1000;
+        } else {
+            beep(3);
+            timer.running = false; timer.elapsed = timer.duration; clearInterval(timer.tick); keepScreenOn(false);
+            timerEls.wrap.classList.add('timer-done');
+        }
+    }
+    timerEls.display.textContent = fmtTime(timer.mode === 'down' ? timerRemaining() : timerElapsed());
+    timerEls.start.innerHTML = timer.running ? '<i class="fas fa-pause" aria-hidden="true"></i> Pause' : '<i class="fas fa-play" aria-hidden="true"></i> Start';
+    const multi = timer.mode === 'down' && timer.rounds > 1;
+    timerEls.roundInfo.textContent = multi ? `Runde ${timer.round} von ${timer.rounds}` : '';
+    timerEls.roundsLabel.textContent = `${timer.rounds} ${timer.rounds === 1 ? 'Runde' : 'Runden'}`;
+    timerEls.downOnly.forEach(el => el.classList.toggle('hidden', timer.mode !== 'down'));
+    timerEls.modeBtns.forEach(b => b.classList.toggle('on', b.dataset.mode === timer.mode));
+    timerEls.presetBtns.forEach(b => b.classList.toggle('on', Number(b.dataset.sec) === timer.duration));
+    // Stationen-Rotation: Team i ist in Runde r an Station ((i + r - 1) mod Anzahl) + 1
+    const showRot = multi && lastTeams.length > 1;
+    timerEls.rotation.classList.toggle('hidden', !showRot);
+    if (showRot) {
+        timerEls.rotation.replaceChildren(...lastTeams.map((names, i) => {
+            const d = document.createElement('div');
+            d.textContent = `Team ${i + 1} → Station ${((i + timer.round - 1) % lastTeams.length) + 1}`;
+            const sub = document.createElement('span'); sub.textContent = names.slice(0, 4).join(', ') + (names.length > 4 ? ' …' : '');
+            d.appendChild(sub);
+            return d;
+        }));
+    }
+    if (presentFit) presentFit();
+}
+function stopTimerView() {
+    if (!timerEls) return;
+    timerPause();
+    timerEls = null;
+}
+function openTimer() {
+    if (lastTeams.length > 1 && timer.rounds === 1) timer.rounds = lastTeams.length;
+    openPresentation('Timer', body => {
+        const wrap = document.createElement('div'); wrap.className = 'timer-wrap';
+        const mk = (tag, cls, html) => { const el = document.createElement(tag); if (cls) el.className = cls; if (html) el.innerHTML = html; return el; };
+        const modes = mk('div', 'timer-row');
+        const modeBtns = [['down', '<i class="fas fa-hourglass-half" aria-hidden="true"></i> Countdown'], ['up', '<i class="fas fa-stopwatch" aria-hidden="true"></i> Stoppuhr']].map(([m, html]) => {
+            const b = mk('button', 'timer-chip', html); b.type = 'button'; b.dataset.mode = m;
+            b.addEventListener('click', () => { timer.mode = m; timerReset(); timerEls.start.focus(); });
+            modes.appendChild(b); return b;
+        });
+        const display = mk('div', 'timer-display'); display.setAttribute('role', 'timer'); display.setAttribute('aria-live', 'off');
+        const roundInfo = mk('div', 'timer-round');
+        const presets = mk('div', 'timer-row');
+        const presetBtns = [30, 60, 120, 180, 300, 600, 900].map(sec => {
+            const b = mk('button', 'timer-chip'); b.type = 'button'; b.dataset.sec = sec;
+            b.textContent = sec < 60 ? `${sec} s` : `${sec / 60} min`;
+            b.addEventListener('click', () => { timer.duration = sec; timerReset(); timerEls.start.focus(); });
+            presets.appendChild(b); return b;
+        });
+        const adjust = mk('div', 'timer-row');
+        const rounds = mk('div', 'timer-row');
+        const roundsLabel = mk('span', 'font-semibold text-indigo-900 px-1');
+        [['−', -1], ['+', 1]].forEach(([lbl, d], i) => {
+            const b = mk('button', 'timer-chip'); b.type = 'button'; b.textContent = lbl;
+            b.setAttribute('aria-label', d < 0 ? 'Eine Runde weniger' : 'Eine Runde mehr');
+            b.addEventListener('click', () => { timer.rounds = Math.min(20, Math.max(1, timer.rounds + d)); timer.round = Math.min(timer.round, timer.rounds); timerUpdate(); timerEls.start.focus(); });
+            if (i === 1) rounds.appendChild(roundsLabel);
+            rounds.appendChild(b);
+        });
+        rounds.insertBefore(mk('span', 'text-sm text-gray-500 mr-1', '<i class="fas fa-repeat" aria-hidden="true"></i> Stationen:'), rounds.firstChild);
+        [['−1 min', -60], ['+1 min', 60], ['+10 s', 10]].forEach(([lbl, d]) => {
+            const b = mk('button', 'timer-chip'); b.type = 'button'; b.textContent = lbl;
+            b.addEventListener('click', () => {
+                const remaining = timerRemaining();
+                timer.duration = Math.max(5, Math.min(5999, timer.duration + d));
+                if (timer.running) timer.endAt = Date.now() + Math.max(1, remaining + d) * 1000;
+                timerUpdate(); timerEls.start.focus();
+            });
+            adjust.appendChild(b);
+        });
+        const actions = mk('div', 'picker-actions');
+        const start = mk('button', 'picker-btn picker-btn-main'); start.type = 'button';
+        start.addEventListener('click', () => timer.running ? timerPause() : timerStart());
+        const reset = mk('button', 'picker-btn', '<i class="fas fa-rotate-left" aria-hidden="true"></i> Zurücksetzen'); reset.type = 'button';
+        reset.addEventListener('click', () => timerReset());
+        actions.append(start, reset);
+        const rotation = mk('div', 'timer-rotation hidden');
+        wrap.append(modes, display, roundInfo, actions, presets, adjust, rounds, rotation);
+        body.appendChild(wrap);
+        timerEls = { wrap, display, roundInfo, start, roundsLabel, rotation, modeBtns, presetBtns, downOnly: [presets, adjust, rounds] };
+    }, () => {
+        if (!timerEls) return;
+        const reserve = timerEls.rotation.classList.contains('hidden') ? 260 : 360;
+        timerEls.display.style.fontSize = Math.max(48, Math.min(($presentBody.clientHeight - reserve) * 0.85, $presentBody.clientWidth / 3.4)) + 'px';
+    });
+    timerUpdate();
+    timerEls.start.focus();
+}
+document.getElementById('timer-btn').addEventListener('click', openTimer);
+document.addEventListener('keydown', e => {
+    if (!timerEls || $present.classList.contains('hidden')) return;
+    if (e.target.closest && e.target.closest('button') && e.key !== 'r' && e.key !== 'R') return;
+    if (e.key === ' ') { e.preventDefault(); timer.running ? timerPause() : timerStart(); }
+    else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); timerReset(); }
+});
+
 // TAB 3: TEAMS
 async function addPerson(name, gender, sporty = false, { confirmDuplicate = false } = {}) {
     if (persons.find(p => p.name.toLowerCase() === name.toLowerCase())) {
@@ -2658,7 +3005,7 @@ document.getElementById('teams-load-classes-btn').addEventListener('click', asyn
     const ids = Array.from(document.querySelectorAll('#teams-class-list input:checked')).map(i => parseInt(i.value, 10));
     const chosen = classes.filter(c => ids.includes(c.id));
     if (chosen.length === 0) { await uiAlert('Bitte mindestens eine Klasse auswählen.'); return; }
-    const students = chosen.flatMap(c => c.students);
+    const students = chosen.flatMap(c => c.students.map(s => ({ ...s, group: c.name })));
     if (students.length === 0) { await uiAlert('Die gewählten Klassen haben noch keine Schüler(innen).'); return; }
     await loadPersonsIntoTeams(students, `Geladen aus ${chosen.map(c => `"${c.name}"`).join(' + ')}: ${students.length} Schüler(innen).`);
 });
@@ -2731,7 +3078,7 @@ document.getElementById('add-bulk-btn').addEventListener('click', () => {
 function showBulkMsg(elId, added, skipped, defaults) {
     let msg = `${added} hinzugefügt.`;
     if (skipped  > 0) msg += ` ${skipped} übersprungen (Duplikate).`;
-    if (defaults > 0) msg += ` ${defaults} ohne Angabe als "weiblich".`;
+    if (defaults > 0) msg += ` ${defaults} ohne Geschlechtsangabe (später über den Stift ergänzen).`;
     const el = document.getElementById(elId); el.textContent = msg; el.classList.remove('hidden');
 }
 
@@ -2835,13 +3182,12 @@ function generateTeams() {
     renderTeams(teams);
 }
 
+let lastTeams = []; // Namen der zuletzt erstellten Teams (für die Stationen-Rotation im Timer)
 function renderTeams(teams) {
+    lastTeams = teams.map(t => t.map(p => p.name));
     const container = document.getElementById('teams-container');
     container.innerHTML = '';
     teams.forEach((team, i) => {
-        const fC = team.filter(p => p.gender === 'female').length;
-        const mC = team.filter(p => p.gender === 'male').length;
-        const dC = team.filter(p => p.gender === 'diverse').length;
         const card = document.createElement('div');
         card.className = 'team-card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 flex flex-col fade-in';
         const header = document.createElement('div');
@@ -2851,9 +3197,10 @@ function renderTeams(teams) {
         header.appendChild(titleEl); header.appendChild(badge);
         const stats = document.createElement('div');
         stats.className = 'px-4 py-1.5 bg-gray-50 border-b border-gray-100 flex text-xs text-gray-500 gap-3';
-        [[fC,'fa-venus','text-pink-400','Weiblich'],[mC,'fa-mars','text-blue-400','Männlich'],[dC,'fa-genderless','text-purple-400','Divers']].forEach(([cnt,icon,color,lbl]) => {
+        Object.keys(GENDER_ICONS).forEach(g => {
+            const cnt = team.filter(p => p.gender === g).length;
             if (!cnt) return;
-            const s = document.createElement('span'); s.title = `${cnt} ${lbl}`; s.innerHTML = `<i class="fas ${icon} ${color} mr-0.5" aria-hidden="true"></i>${cnt}<span class="sr-only"> ${lbl}</span>`; stats.appendChild(s);
+            const s = genderIconEl(g); s.title = `${cnt} ${GENDER_LABELS[g]}`; s.append(` ${cnt}`); stats.appendChild(s);
         });
         const ul = document.createElement('ul'); ul.className = 'team-members p-3 flex-grow' + (team.length > 8 ? ' team-members-2col' : '');
         team.forEach(p => {
@@ -3218,8 +3565,114 @@ function backupHousekeeping() {
     });
 }
 
+// FARBSCHEMA — Umschalter Hell/Dunkel; ohne eigene Wahl gilt die Systemeinstellung (siehe theme.js).
+const $themeBtn = document.getElementById('theme-btn');
+function applyTheme(dark) {
+    document.documentElement.classList.toggle('dark', dark);
+    $themeBtn.innerHTML = `<i class="fas ${dark ? 'fa-sun' : 'fa-moon'}" aria-hidden="true"></i>`;
+    $themeBtn.title = dark ? 'Helles Farbschema' : 'Dunkles Farbschema';
+    document.querySelector('meta[name="theme-color"]').content = dark ? '#1e1b4b' : '#4f46e5';
+}
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+applyTheme(document.documentElement.classList.contains('dark'));
+$themeBtn.addEventListener('click', () => {
+    const dark = !document.documentElement.classList.contains('dark');
+    storageSet('tg2_theme', dark ? 'dark' : 'light');
+    applyTheme(dark);
+});
+darkQuery.addEventListener('change', e => { try { if (!localStorage.getItem('tg2_theme')) applyTheme(e.matches); } catch (err) {} });
+
+// INFO-DIALOG (Hilfe, Einführungstour)
+const $info = document.getElementById('info-dialog');
+let infoPrevFocus = null;
+function openInfo(title, html, actions) {
+    infoPrevFocus = document.activeElement;
+    document.getElementById('info-title').textContent = title;
+    document.getElementById('info-body').innerHTML = html; // nur feste, eigene Texte (keine Nutzerdaten)
+    const bar = document.getElementById('info-actions');
+    bar.replaceChildren(...actions.map(({ label, primary, fn, left }) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = primary ? 'px-4 py-2 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700 font-medium'
+            : 'px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50';
+        if (left) b.classList.add('mr-auto');
+        b.innerHTML = label;
+        b.addEventListener('click', fn);
+        return b;
+    }));
+    $info.classList.remove('hidden');
+    (bar.querySelector('.bg-indigo-600') || document.getElementById('info-close')).focus();
+}
+function closeInfo() {
+    if ($info.classList.contains('hidden')) return;
+    $info.classList.add('hidden');
+    if (infoPrevFocus && infoPrevFocus.isConnected) infoPrevFocus.focus();
+}
+document.getElementById('info-close').addEventListener('click', () => { closeInfo(); storageSet('tg2_tourDone', 1); });
+$info.addEventListener('mousedown', e => { if (e.target === $info) { closeInfo(); storageSet('tg2_tourDone', 1); } });
+$info.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closeInfo(); storageSet('tg2_tourDone', 1); } });
+
+const kbd = k => `<kbd class="px-1.5 py-0.5 rounded border border-gray-300 bg-gray-50 text-xs font-mono">${k}</kbd>`;
+function showHelp() {
+    openInfo('Hilfe und Tastenkürzel', `
+        <p><strong>So geht's:</strong> Klasse anlegen (oder Beispielklasse), Anwesenheit erfassen und speichern, dann Teams bilden oder die Sitzordnung planen. Alles wird automatisch im Browser gespeichert.</p>
+        <table class="w-full text-sm">
+            <tr><td class="py-1 pr-3 whitespace-nowrap">${kbd('Alt')} + ${kbd('1')} bis ${kbd('7')}</td><td>Reiter wechseln</td></tr>
+            <tr><td class="py-1 pr-3 whitespace-nowrap">${kbd('←')} ${kbd('→')}</td><td>Nächster Reiter (wenn die Reiterleiste den Fokus hat)</td></tr>
+            <tr><td class="py-1 pr-3 whitespace-nowrap">${kbd('Leertaste')}</td><td>"Wer ist dran?": nächste Person · Timer: Start/Pause</td></tr>
+            <tr><td class="py-1 pr-3 whitespace-nowrap">${kbd('R')}</td><td>Timer zurücksetzen</td></tr>
+            <tr><td class="py-1 pr-3 whitespace-nowrap">${kbd('Esc')}</td><td>Dialog oder Präsentation schliessen</td></tr>
+        </table>
+        <p><strong>Sitzordnung:</strong> Personen mit Maus oder Finger auf einen anderen Tisch ziehen. Das Schloss fixiert einen Platz.</p>
+        <p><strong>Datensicherheit:</strong> Die Daten liegen nur in diesem Browser. Über die Fusszeile regelmässig ein Backup herunterladen (optional mit Passwort). In Chrome/Edge kann zusätzlich eine Datendatei automatisch mitgeschrieben werden.</p>
+        <p><strong>Auf dem Handy</strong> ist vor allem die Anwesenheit gedacht; die übrigen Bereiche funktionieren am besten auf Laptop oder Tablet.</p>`,
+        [{ label: 'Einführung erneut zeigen', left: true, fn: () => { closeInfo(); showTour(0); } }, { label: 'Schliessen', primary: true, fn: closeInfo }]);
+}
+document.getElementById('help-btn').addEventListener('click', showHelp);
+
+// EINFÜHRUNGSTOUR beim ersten Start (drei Schritte), später über die Hilfe erneut aufrufbar.
+const TOUR = [
+    ['Willkommen im Klassenmanager', `<p class="text-base">Dein Werkzeug für den Unterricht: <strong>Anwesenheit</strong> erfassen, <strong>Prüfungen</strong> und <strong>Bonuspunkte</strong> führen, <strong>faire Teams</strong> bilden und <strong>Sitzordnungen</strong> planen.</p>
+        <p>Kostenlos, ohne Konto und ohne Werbung. Läuft auch offline, z.B. in der Turnhalle.</p>`],
+    ['In drei Schritten startklar', `<ol class="list-decimal pl-5 space-y-2">
+        <li><strong>Klasse anlegen</strong> und Schüler(innen) eintragen, einzeln oder als Liste (auch Import aus Excel).</li>
+        <li><strong>Anwesenheit</strong> antippen und speichern. Die App schlägt die Klasse vor, die laut Wochenplan gerade dran ist.</li>
+        <li>Daraus mit einem Klick <strong>Teams</strong> bilden, jemanden mit <strong>"Wer ist dran?"</strong> ziehen oder den <strong>Timer</strong> starten.</li></ol>`],
+    ['Deine Daten gehören dir', `<p>Alles bleibt auf diesem Gerät, nichts geht an einen Server. Darum: ab und zu über die Fusszeile ein <strong>Backup</strong> herunterladen. Die App erinnert dich daran.</p>
+        <p>Tipp: Über ${kbd('?')} oben rechts findest du jederzeit Hilfe und Tastenkürzel.</p>`]
+];
+function showTour(step) {
+    const [title, html] = TOUR[step];
+    const dots = `<div class="flex justify-center gap-1.5 pt-2">${TOUR.map((_, i) => `<span class="w-2 h-2 rounded-full ${i === step ? 'bg-indigo-600' : 'bg-gray-200'}"></span>`).join('')}</div>`;
+    const done = () => { storageSet('tg2_tourDone', 1); closeInfo(); };
+    const last = step === TOUR.length - 1;
+    const actions = [{ label: 'Überspringen', left: true, fn: done }];
+    if (step > 0) actions.push({ label: 'Zurück', fn: () => showTour(step - 1) });
+    if (!last) actions.push({ label: 'Weiter', primary: true, fn: () => showTour(step + 1) });
+    else {
+        if (!classes.length) actions.push({ label: '<i class="fas fa-wand-magic-sparkles mr-1" aria-hidden="true"></i> Beispielklasse anlegen', primary: true, fn: () => { done(); switchTab('classes'); createDemoClass(); } });
+        actions.push({ label: classes.length ? 'Los geht\'s' : 'Selbst starten', primary: !!classes.length, fn: done });
+    }
+    openInfo(title, html + dots, actions);
+}
+
+// TASTENKÜRZEL: Alt + 1–7 wechselt den Reiter
+document.addEventListener('keydown', e => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code || '');
+    const n = m ? parseInt(m[1], 10) : 0;
+    if (n >= 1 && n <= tabButtons.length && $present.classList.contains('hidden')) {
+        e.preventDefault();
+        switchTab(tabButtons[n - 1].dataset.tab);
+        tabButtons[n - 1].focus();
+    }
+});
+
 // INIT
 loadStorage();
 renderClassList(); renderClassDetail();
-switchTab(location.hash.slice(1) || 'classes');
+// Auf dem Handy ist die Anwesenheit der Hauptzweck: dort direkt starten, sobald Klassen existieren.
+const isPhone = window.matchMedia('(max-width: 639px)').matches;
+switchTab(location.hash.slice(1) || (isPhone && classes.length ? 'attendance' : 'classes'));
 initDataFile().catch(() => {}).then(backupHousekeeping);
+if (!classes.length && !storageNum('tg2_tourDone')) showTour(0);

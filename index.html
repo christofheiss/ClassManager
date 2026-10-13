@@ -11,8 +11,9 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-    <link rel="stylesheet" href="vendor/tailwind.css">
+    <script src="theme.js"></script>
     <link rel="stylesheet" href="vendor/fontawesome/css/icons.min.css">
+    <link rel="stylesheet" href="vendor/tailwind.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="text-gray-800 min-h-screen py-2 sm:py-4 px-2 md:px-6">
@@ -20,16 +21,27 @@
 <div class="max-w-6xl mx-auto bg-white rounded-2xl sm:rounded-3xl shadow-xl ring-1 ring-black/5">
 
     <!-- Header -->
-    <div class="app-header rounded-t-2xl sm:rounded-t-3xl text-white px-4 py-2.5 sm:py-3 text-center relative overflow-hidden no-print">
+    <div class="app-header rounded-t-2xl sm:rounded-t-3xl text-white px-4 py-2.5 sm:py-3 text-left sm:text-center relative overflow-hidden no-print">
         <div class="relative z-10">
             <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight">
-                <i class="fas fa-people-group mr-2 opacity-80" aria-hidden="true"></i>Klassenmanager
+                <i class="fas fa-people-group mr-2 opacity-80 hidden sm:inline-block" aria-hidden="true"></i>Klassenmanager
             </h1>
-            <p class="hidden sm:block text-indigo-100/90 text-xs mt-0.5">Klassen verwalten · Anwesenheit erfassen · Auswerten · Teams bilden</p>
+            <p class="hidden sm:block text-indigo-100/90 text-xs mt-0.5">Anwesenheit · Prüfungen · Punkte · Teams · Sitzordnung</p>
         </div>
-        <button id="install-btn" type="button" class="hidden absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 text-xs font-semibold bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition-colors" title="Klassenmanager als App installieren (läuft danach auch offline)">
-            <i class="fas fa-download" aria-hidden="true"></i><span class="hidden sm:inline">App installieren</span>
-        </button>
+        <div class="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5">
+            <button id="install-btn" type="button" class="hdr-btn hidden" title="Klassenmanager als App installieren (läuft danach auch offline)">
+                <i class="fas fa-download" aria-hidden="true"></i><span class="hidden lg:inline">App installieren</span>
+            </button>
+            <button id="timer-btn" type="button" class="hdr-btn" title="Stoppuhr und Countdown (auch für Stationen)" aria-label="Stoppuhr und Countdown">
+                <i class="fas fa-stopwatch" aria-hidden="true"></i><span class="hidden lg:inline">Timer</span>
+            </button>
+            <button id="theme-btn" type="button" class="hdr-btn" title="Hell/Dunkel umschalten" aria-label="Farbschema umschalten">
+                <i class="fas fa-moon" aria-hidden="true"></i>
+            </button>
+            <button id="help-btn" type="button" class="hdr-btn" title="Hilfe und Tastenkürzel" aria-label="Hilfe und Tastenkürzel">
+                <i class="fas fa-circle-question" aria-hidden="true"></i>
+            </button>
+        </div>
         <div class="header-blob header-blob-1"></div>
         <div class="header-blob header-blob-2"></div>
     </div>
@@ -201,6 +213,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="student-gender" value="female" checked class="text-indigo-600"><span>Weiblich</span></label>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="student-gender" value="male" class="text-indigo-600"><span>Männlich</span></label>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="student-gender" value="diverse" class="text-indigo-600"><span>Divers</span></label>
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-gray-500"><input type="radio" name="student-gender" value="unknown" class="text-indigo-600"><span>Ohne Angabe</span></label>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer text-emerald-700" title="Für faire Teams im Sportunterricht">
                                 <input type="checkbox" id="student-sporty-input" class="rounded text-emerald-600 h-4 w-4">
                                 <span><i class="fas fa-person-running mr-0.5" aria-hidden="true"></i>Sportlich</span>
@@ -214,7 +227,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                         </button>
                         <div id="class-bulk-area" class="hidden mt-2 p-3 bg-gray-50 rounded-lg border text-sm">
                             <p class="text-xs text-gray-500 mb-1">Format: <code class="bg-gray-200 px-1 rounded">Anna w, Max ms, Kim d</code> &nbsp;(<code class="bg-gray-200 px-1 rounded">s</code> = sportlich, auch <code class="bg-gray-200 px-1 rounded">Max m (s)</code>). Klassenkürzel in eckigen Klammern: <code class="bg-gray-200 px-1 rounded">Max m [7a]</code></p>
-                            <p class="text-xs text-amber-600 mb-2"><i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Ohne Angabe = weiblich, nicht sportlich. Kürzel klein schreiben — Grossbuchstaben zählen zum Namen (z.B. "Anna M").</p>
+                            <p class="text-xs text-amber-600 mb-2"><i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Ohne Angabe: Geschlecht offen, nicht sportlich. Kürzel klein schreiben — Grossbuchstaben zählen zum Namen (z.B. "Anna M").</p>
                             <textarea id="class-bulk-input" rows="3" placeholder="Anna w&#10;Max m&#10;Kim d" aria-label="Mehrere Schüler(innen), eine pro Zeile"
                                 class="w-full border rounded p-2 text-xs font-mono focus:border-indigo-500 focus:outline-none"></textarea>
                             <p id="class-bulk-msg" class="text-xs text-indigo-700 hidden mt-1"></p>
@@ -240,6 +253,10 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
 
     <!-- TAB 2: ANWESENHEIT -->
     <div id="tab-attendance" class="hidden p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-attendance">
+        <div id="attendance-suggest" class="hidden mb-4 flex items-center justify-between gap-3 bg-sky-50 border border-sky-200 text-sky-800 rounded-lg px-3 py-2 text-sm">
+            <span><i class="fas fa-clock mr-1.5" aria-hidden="true"></i><span id="attendance-suggest-text"></span></span>
+            <button id="attendance-suggest-btn" type="button" class="text-xs font-semibold bg-white border border-sky-300 hover:bg-sky-100 px-2.5 py-1 rounded-md flex-shrink-0">Öffnen</button>
+        </div>
         <div class="mb-6 flex flex-col sm:flex-row gap-4">
             <div>
                 <label for="attendance-class-select" class="block text-sm font-medium text-gray-700 mb-1">Klasse auswählen</label>
@@ -279,19 +296,25 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
             </div>
             <p class="text-xs text-gray-400 mb-2"><i class="fas fa-hand-pointer mr-1" aria-hidden="true"></i>Klicken wechselt den Status: <span class="text-green-700 font-medium">Anwesend</span> → <span class="text-red-600 font-medium">Abwesend</span> → <span class="text-orange-600 font-medium">Verletzt</span> (anwesend, macht nicht mit).</p>
             <div id="attendance-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6 items-start"></div>
-            <div class="border-t pt-5 flex flex-col sm:flex-row items-center justify-center gap-3">
-                <button id="save-attendance-btn"
-                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-colors inline-flex items-center gap-2 text-sm">
-                    <i class="fas fa-save" aria-hidden="true"></i> Anwesenheit speichern
-                </button>
-                <button id="load-to-teams-btn"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-colors inline-flex items-center gap-2 text-sm">
-                    <i class="fas fa-users" aria-hidden="true"></i>
-                    <span id="load-to-teams-label">Teams erstellen</span>
-                </button>
+            <!-- Fixierte Aktionsleiste: bleibt beim Scrollen durch lange Klassenlisten sichtbar -->
+            <div id="attendance-bar" class="attendance-bar">
+                <div class="text-xs sm:text-sm text-gray-600 min-w-0">
+                    <span class="font-semibold text-gray-800"><span id="bar-present">0</span>/<span id="bar-total">0</span></span> anwesend
+                    <span id="attendance-dirty-hint" class="hidden text-amber-600 block sm:inline sm:ml-2" role="status"><i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>Nicht gespeichert</span>
+                    <span id="attendance-saved-msg" class="hidden text-emerald-600 block sm:inline sm:ml-2" role="status"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Gespeichert</span>
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button id="save-attendance-btn"
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 sm:px-5 rounded-xl shadow-md transition-colors inline-flex items-center gap-2 text-sm">
+                        <i class="fas fa-save" aria-hidden="true"></i> Speichern
+                    </button>
+                    <button id="load-to-teams-btn"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 sm:px-5 rounded-xl shadow-md transition-colors inline-flex items-center gap-2 text-sm" title="Anwesende in den Teams-Reiter übernehmen">
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        <span id="load-to-teams-label" class="hidden sm:inline">Teams erstellen</span>
+                    </button>
+                </div>
             </div>
-            <p id="attendance-dirty-hint" class="hidden text-xs text-amber-600 text-center mt-2" role="status"><i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>Ungespeicherte Änderungen — "Anwesenheit speichern" nicht vergessen.</p>
-            <p id="attendance-saved-msg" class="hidden text-xs text-emerald-600 text-center mt-2" role="status"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Anwesenheit für dieses Datum gespeichert.</p>
 
             <div class="border-t mt-8 pt-5">
                 <div class="flex items-center justify-between mb-2">
@@ -594,6 +617,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
 
     <!-- TAB: SITZORDNUNG -->
     <div id="tab-seating" class="hidden p-3 sm:p-4 md:p-5" role="tabpanel" aria-labelledby="tab-btn-seating">
+        <p class="sm:hidden mb-3 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2"><i class="fas fa-tablet-screen-button mr-1" aria-hidden="true"></i>Die Sitzordnung lässt sich am besten auf Tablet oder Laptop planen.</p>
         <div class="no-print flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
             <label for="seating-class-select" class="text-sm font-medium text-gray-700">Klasse</label>
             <select id="seating-class-select" class="border rounded-md p-2 text-sm bg-white w-full sm:w-72"></select>
@@ -710,6 +734,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="gender" value="female" checked class="text-indigo-600"> Weiblich</label>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="gender" value="male" class="text-indigo-600"> Männlich</label>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="gender" value="diverse" class="text-indigo-600"> Divers</label>
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer text-gray-500"><input type="radio" name="gender" value="unknown" class="text-indigo-600"> Ohne Angabe</label>
                             <label class="inline-flex items-center gap-1.5 cursor-pointer text-emerald-700"><input type="checkbox" id="person-sporty-input" class="rounded text-emerald-600 h-4 w-4"> Sportlich</label>
                         </div>
                         <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition-colors flex justify-center items-center gap-2 text-sm">
@@ -790,7 +815,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                     </button>
                     <div id="bulk-area" class="hidden mt-2 bg-white p-3 rounded-lg border border-indigo-100">
                         <p class="text-xs text-gray-500 mb-1">Format: <code class="bg-gray-100 px-1 rounded">Max ms, Anna w, Kim d</code> &nbsp;(<code class="bg-gray-100 px-1 rounded">s</code> = sportlich)</p>
-                        <p class="text-xs text-amber-600 mb-2"><i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Ohne Angabe = weiblich, nicht sportlich. Kürzel klein schreiben — Grossbuchstaben zählen zum Namen (z.B. "Anna M").</p>
+                        <p class="text-xs text-amber-600 mb-2"><i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Ohne Angabe: Geschlecht offen, nicht sportlich. Kürzel klein schreiben — Grossbuchstaben zählen zum Namen (z.B. "Anna M").</p>
                         <textarea id="bulk-input" rows="3" placeholder="Max m&#10;Anna w&#10;Kim d" aria-label="Mehrere Personen, eine pro Zeile"
                             class="w-full rounded border p-2 text-xs font-mono focus:border-indigo-500 focus:outline-none"></textarea>
                         <p id="bulk-result-msg" class="text-xs text-indigo-700 hidden mt-1"></p>
@@ -824,7 +849,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     <!-- Footer: Komplett-Backup & lokale Datendatei -->
     <div class="bg-gray-50 border-t border-gray-200 px-5 py-3 space-y-2 text-xs text-gray-400 no-print rounded-b-2xl sm:rounded-b-3xl">
         <div class="flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span class="sm:flex-1 sm:min-w-0"><i class="fas fa-database mr-1" aria-hidden="true"></i>Alle Daten bleiben lokal in diesem Browser (unverschlüsselt) — auf geteilten Geräten Backups mit Passwort schützen.</span>
+            <span class="sm:flex-1 sm:min-w-0"><i class="fas fa-shield-halved mr-1 text-emerald-500" aria-hidden="true"></i>Deine Daten bleiben auf diesem Gerät, nichts geht an einen Server. Tipp: regelmässig ein Backup erstellen.</span>
             <div class="flex flex-wrap justify-center sm:justify-end gap-2 flex-shrink-0">
                 <button id="backup-export-btn" class="footer-btn">
                     <i class="fas fa-download" aria-hidden="true"></i> Komplett-Backup herunterladen
@@ -869,6 +894,54 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
     <button id="storage-warning-close" class="text-red-200 hover:text-white" aria-label="Hinweis schliessen"><i class="fas fa-times" aria-hidden="true"></i></button>
 </div>
 
+<!-- Hilfe und Einführungstour (Inhalt aus app.js) -->
+<div id="info-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div role="dialog" aria-modal="true" aria-labelledby="info-title" class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 fade-in max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-3 mb-3">
+            <h3 id="info-title" class="font-semibold text-lg text-gray-800"></h3>
+            <button id="info-close" type="button" class="text-gray-400 hover:text-gray-600 p-1" aria-label="Schliessen"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        </div>
+        <div id="info-body" class="text-sm text-gray-600 space-y-3"></div>
+        <div id="info-actions" class="mt-5 flex items-center gap-2"></div>
+    </div>
+</div>
+
+<!-- Schüler(in) bearbeiten -->
+<div id="student-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <form id="student-dialog-form" role="dialog" aria-modal="true" aria-labelledby="student-dialog-title" class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 fade-in space-y-3">
+        <h3 id="student-dialog-title" class="font-semibold text-gray-800">Schüler(in) bearbeiten</h3>
+        <div class="grid grid-cols-3 gap-2">
+            <label class="col-span-2 text-xs font-medium text-gray-600">Name
+                <input type="text" id="sd-name" maxlength="60" required class="mt-1 w-full border rounded-md p-2 text-sm">
+            </label>
+            <label class="text-xs font-medium text-gray-600">Klassenkürzel
+                <input type="text" id="sd-tag" maxlength="20" placeholder="z.B. 7a" class="mt-1 w-full border rounded-md p-2 text-sm">
+            </label>
+        </div>
+        <fieldset>
+            <legend class="text-xs font-medium text-gray-600 mb-1">Geschlecht</legend>
+            <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="sd-gender" value="female"> Weiblich</label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="sd-gender" value="male"> Männlich</label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="radio" name="sd-gender" value="diverse"> Divers</label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer text-gray-500"><input type="radio" name="sd-gender" value="unknown"> Ohne Angabe</label>
+            </div>
+        </fieldset>
+        <label class="block text-xs font-medium text-gray-600">Hobbys/Sportarten <span class="font-normal text-gray-400">(durch Komma getrennt, für Teams nach Sportart)</span>
+            <input type="text" id="sd-hobbies" placeholder="z.B. Fussball, Tennis" class="mt-1 w-full border rounded-md p-2 text-sm">
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer text-emerald-700">
+            <input type="checkbox" id="sd-sporty" class="h-4 w-4"><i class="fas fa-person-running" aria-hidden="true"></i> Sportlich <span class="text-xs text-gray-400">(für faire Teams im Sport)</span>
+        </label>
+        <p id="sd-error" class="hidden text-xs text-red-600" role="alert"></p>
+        <div class="flex items-center gap-2 pt-1">
+            <button type="button" id="sd-remove" class="mr-auto text-sm text-red-600 hover:bg-red-50 px-3 py-2 rounded-md inline-flex items-center gap-1.5"><i class="fas fa-trash-alt" aria-hidden="true"></i> Entfernen</button>
+            <button type="button" id="sd-cancel" class="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50">Abbrechen</button>
+            <button type="submit" class="px-4 py-2 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700 font-medium">Speichern</button>
+        </div>
+    </form>
+</div>
+
 <!-- Modal-Dialog (ersetzt alert/confirm/prompt) -->
 <div id="modal-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <div role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message" class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 fade-in">
@@ -884,7 +957,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
 </div>
 
 <!-- Toasts (z.B. "Rückgängig") -->
-<div id="toast-container" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 space-y-2 no-print" aria-live="polite"></div>
+<div id="toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 space-y-2 no-print" aria-live="polite"></div>
 
 <script src="core.js"></script>
 <script src="app.js"></script>

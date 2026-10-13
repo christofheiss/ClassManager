@@ -15,8 +15,10 @@
     // Anwesenheits-Status: 'injured' = anwesend, kann aber nicht aktiv mitmachen (z.B. verletzt).
     const ATTENDANCE_STATUSES = ['present', 'absent', 'injured'];
 
-    // Nur diese drei Werte dürfen je in s.gender landen; alles andere fällt auf 'diverse' zurück.
-    function sanitizeGender(g) { return (g === 'female' || g === 'male' || g === 'diverse') ? g : 'diverse'; }
+    // Nur diese Werte dürfen je in s.gender landen. 'unknown' = ohne Angabe (zählt bei der
+    // Verteilung neutral); alles Unbekannte fällt darauf zurück.
+    const GENDERS = ['female', 'male', 'diverse', 'unknown'];
+    function sanitizeGender(g) { return GENDERS.includes(g) ? g : 'unknown'; }
     function sanitizeStatus(s) { return (s === 'absent' || s === 'injured') ? s : 'present'; }
 
     // HOBBYS/SPORTARTEN — freie Texteingabe ("Fussball, Tennis"), normalisiert und dedupliziert.
@@ -66,7 +68,7 @@
             let classTag = '';
             const tagMatch = entry.match(/\s*\[([^\]]{1,20})\]$/);
             if (tagMatch) { classTag = tagMatch[1].trim(); entry = entry.slice(0, tagMatch.index).trim(); }
-            let gender = 'female', sporty = false, rest = entry;
+            let gender = 'unknown', sporty = false, rest = entry;
             let genderSet = false, sportySet = false, tagCount = 0;
             for (let iter = 0; iter < 2; iter++) {
                 let tag = null, tagIndex = -1;
@@ -136,9 +138,11 @@
             const [className, studentName, genderRaw, sportyRaw, classTagRaw, hobbiesRaw] = parts;
             if (!className || !studentName) return;
             if (i === 0 && isCsvHeader(className, studentName)) return;
-            let gender = 'female';
+            let gender = 'unknown';
             const g = (genderRaw || '').toLowerCase();
-            if (g.startsWith('m')) gender = 'male'; else if (g.startsWith('d')) gender = 'diverse';
+            if (g.startsWith('m')) gender = 'male';
+            else if (g.startsWith('w') || g.startsWith('f')) gender = 'female';
+            else if (g.startsWith('d')) gender = 'diverse';
             const sporty = /^(s|ja|x|1|sportlich|true)$/i.test(sportyRaw || '');
             const classTag = (classTagRaw || '').slice(0, 20).trim();
             const hobbies = parseHobbies(hobbiesRaw || '');
@@ -221,6 +225,25 @@
         return `"${s}"`;
     }
 
+    // EINDEUTIGE ANZEIGENAMEN — kombiniert man Klassen, kann es zwei "Anna" geben. Doppelte Namen
+    // erhalten die Klasse in Klammern ("Anna (7a)"), bleibt es doppelt, eine laufende Nummer.
+    // Wichtig, weil "Nicht zusammen"-Regeln und die Anzeige über den Namen laufen.
+    function uniqueDisplayNames(items) {
+        const key = n => n.trim().toLowerCase();
+        const count = list => list.reduce((m, n) => m.set(key(n), (m.get(key(n)) || 0) + 1), new Map());
+        const base = items.map(it => it.name);
+        const groups = new Map();
+        items.forEach(it => { const k = key(it.name); if (!groups.has(k)) groups.set(k, new Set()); groups.get(k).add(it.group || ''); });
+        const withGroup = items.map((it, i) => groups.get(key(base[i])).size > 1 && it.group ? `${base[i]} (${it.group})` : base[i]);
+        const c2 = count(withGroup), seen = new Map();
+        return withGroup.map(n => {
+            if (c2.get(key(n)) < 2) return n;
+            const k = key(n), nr = (seen.get(k) || 0) + 1;
+            seen.set(k, nr);
+            return nr === 1 ? n : `${n} ${nr}`;
+        });
+    }
+
     // TEAM-VERTEILUNG
     function shuffleArray(arr, rng) {
         const random = rng || Math.random;
@@ -244,7 +267,7 @@
             // mit fortlaufendem Index über die Teams verteilen: so landet jede Gruppe
             // (z.B. "sportlich + weiblich") möglichst gleichmässig in allen Teams.
             const sportKeys = balanceSport ? [...new Set(shuf.map(levelOf))].sort((a, b) => b - a) : [null];
-            const genderKeys = balanceGender ? ['female', 'male', 'diverse'] : [null];
+            const genderKeys = balanceGender ? GENDERS : [null];
             const strata = [];
             sportKeys.forEach(sp => genderKeys.forEach(g => {
                 strata.push(shuf.filter(p =>
@@ -550,7 +573,7 @@
         function pairCost([a, b, kind]) {
             if (a.s === null || b.s === null) return 0;
             let sc = 0;
-            if (kind === 'h' && o.mixGender && gender[a.s] === gender[b.s]) sc += 1;
+            if (kind === 'h' && o.mixGender && gender[a.s] === gender[b.s] && gender[a.s] !== 'unknown') sc += 1;
             if (apartSet.size && apartSet.has(Math.min(a.s, b.s) + '|' + Math.max(a.s, b.s))) sc += 20;
             return sc;
         }
@@ -585,11 +608,11 @@
     }
 
     return {
-        DATE_RE, TIME_RE, WEEKDAYS, WEEKDAYS_FULL, REASON_CATEGORIES, ATTENDANCE_STATUSES,
+        DATE_RE, TIME_RE, GENDERS, WEEKDAYS, WEEKDAYS_FULL, REASON_CATEGORIES, ATTENDANCE_STATUSES,
         sanitizeGender, sanitizeStatus, parseHobbies, sanitizeHobbies,
         todayStr, getWeekdayIndex, getSemester, formatDateDisplay,
         bulkParse, isCsvHeader, splitCsvLine, parseCsvImport, parseAttendanceCsv, escapeCsv, pointsToGrade, computePointsTotal, computePointsSeries,
-        shuffleArray, distributeTeams, enforceApart,
+        uniqueDisplayNames, shuffleArray, distributeTeams, enforceApart,
         cleanSeatingPlan, generateSeating,
         validateBackup
     };

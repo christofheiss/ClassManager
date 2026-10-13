@@ -21,10 +21,9 @@ SRC_FONT = ROOT / 'vendor/fontawesome/source/fa-solid-900.woff2'
 OUT_CSS = ROOT / 'vendor/fontawesome/css/icons.min.css'
 OUT_FONT = ROOT / 'vendor/fontawesome/webfonts/fa-solid-subset.woff2'
 SCAN = ['index.html', 'app.js']
-# Symbole, deren Namen im Code zusammengesetzt werden (z.B. `fa-${d.l ? 'lock' : 'lock-open'}`)
-EXTRA = {'fa-lock', 'fa-lock-open'}
-
-used = set(EXTRA)
+# Symbolnamen im Code immer vollständig ausschreiben ('fa-lock', nicht `fa-${...}`),
+# sonst findet dieser Scan sie nicht.
+used = set()
 for name in SCAN:
     used |= set(re.findall(r'fa-[a-z0-9-]+', (ROOT / name).read_text(encoding='utf-8')))
 
