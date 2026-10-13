@@ -4,7 +4,7 @@ const {
     sanitizeGender, sanitizeStatus, parseHobbies, sanitizeHobbies,
     todayStr, getWeekdayIndex, getSemester, formatDateDisplay,
     bulkParse, parseCsvImport, parseAttendanceCsv, escapeCsv, pointsToGrade, computePointsTotal, computePointsSeries,
-    distributeTeams, enforceApart, validateBackup
+    distributeTeams, enforceApart, validateBackup, generateSeating, cleanSeatingPlan
 } = window.TG;
 
 // STATE
@@ -27,6 +27,9 @@ let selExamClassId = null, selExamId = null, examDirty = false;
 // pointsData: { [classId]: { goals: [{id,text,points}], entries: [{id,type:'lektion'|'reset',date,goalIds,note,points}] } }
 let pointsData = {}, pointsIdCounter = 1;
 let selPointsClassId = null;
+let selSeatingClassId = null, seatMode = 'seat', seatSel = null;
+// seatingData: { [classId]: { current: Plan|null, saved: [ {id, name, cols, rows, desks} ] } }, Plan = { cols, rows, desks:[{x,y,s,l}] }
+let seatingData = {}, seatingIdCounter = 1;
 
 const GENDER_ICONS = {
     female:  '<i class="fas fa-venus text-pink-500" title="Weiblich" aria-hidden="true"></i><span class="sr-only">weiblich</span>',
@@ -67,6 +70,10 @@ function saveExams() {
 }
 function savePointsData() {
     try { localStorage.setItem('tg2_points', JSON.stringify(pointsData)); localStorage.setItem('tg2_pointsId', String(pointsIdCounter)); } catch(e) { storageWarn(); }
+    scheduleDataFileWrite();
+}
+function saveSeating() {
+    try { localStorage.setItem('tg2_seating', JSON.stringify(seatingData)); localStorage.setItem('tg2_seatingId', String(seatingIdCounter)); } catch(e) { storageWarn(); }
     scheduleDataFileWrite();
 }
 function loadStorage() {
@@ -119,6 +126,24 @@ function loadStorage() {
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) pointsData = parsed;
             pointsIdCounter = parseInt(localStorage.getItem('tg2_pointsId')||'1',10) || 1;
         }
+        const seat = localStorage.getItem('tg2_seating');
+        if (seat) {
+            const parsed = JSON.parse(seat);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) seatingData = parsed;
+            seatingIdCounter = parseInt(localStorage.getItem('tg2_seatingId')||'1',10) || 1;
+        }
+        // Beschädigte oder veraltete Sitzpläne (z.B. gelöschte Schüler) bereinigen
+        Object.keys(seatingData).forEach(k => {
+            const cls = classes.find(c => String(c.id) === k);
+            const sd = seatingData[k];
+            if (!cls || !sd || typeof sd !== 'object') { delete seatingData[k]; return; }
+            const ids = new Set(cls.students.map(st => st.id));
+            sd.current = cleanSeatingPlan(sd.current, ids);
+            sd.saved = (Array.isArray(sd.saved) ? sd.saved : []).map(sp => {
+                const plan = cleanSeatingPlan(sp, ids);
+                return plan && sp && Number.isInteger(sp.id) && typeof sp.name === 'string' ? { id: sp.id, name: sp.name, ...plan } : null;
+            }).filter(Boolean);
+        });
     } catch(e) {}
 }
 
@@ -201,17 +226,18 @@ function snapshotState() {
         persons: structuredClone(persons),
         exams: structuredClone(exams),
         pointsData: structuredClone(pointsData),
-        classIdCounter, stuIdCounter, personIdCounter, examIdCounter, pointsIdCounter,
+        seatingData: structuredClone(seatingData),
+        classIdCounter, stuIdCounter, personIdCounter, examIdCounter, pointsIdCounter, seatingIdCounter,
         activeClassId, selAttendClassId, personsManual
     };
 }
 function restoreState(snap) {
     classes = snap.classes; attendanceData = snap.attendanceData; persons = snap.persons;
-    exams = snap.exams; pointsData = snap.pointsData;
+    exams = snap.exams; pointsData = snap.pointsData; seatingData = snap.seatingData || {}; seatingIdCounter = snap.seatingIdCounter || 1;
     classIdCounter = snap.classIdCounter; stuIdCounter = snap.stuIdCounter; personIdCounter = snap.personIdCounter;
     examIdCounter = snap.examIdCounter; pointsIdCounter = snap.pointsIdCounter;
     activeClassId = snap.activeClassId; selAttendClassId = snap.selAttendClassId; personsManual = snap.personsManual;
-    saveClasses(); saveAttendanceData(); savePersons(); saveExams(); savePointsData();
+    saveClasses(); saveAttendanceData(); savePersons(); saveExams(); savePointsData(); saveSeating();
     renderClassList(); renderClassDetail(); renderPersonList();
     refreshAttendanceSelect(); refreshStatsSelect();
     const attSel = document.getElementById('attendance-class-select');
@@ -226,6 +252,7 @@ function restoreState(snap) {
         document.getElementById('attendance-content').classList.add('hidden');
     }
     renderStats();
+    renderSeating();
 }
 // Führt eine destruktive Änderung aus und bietet danach "Rückgängig" per Toast an.
 function withUndo(message, mutate) {
@@ -244,9 +271,10 @@ tabButtons.forEach((btn, i) => btn.addEventListener('keydown', e => {
     next.focus(); switchTab(next.dataset.tab);
 }));
 function switchTab(tab) {
-    ['classes','attendance','stats','exams','points','teams'].forEach(t => document.getElementById('tab-'+t).classList.toggle('hidden', t !== tab));
+    ['classes','attendance','stats','exams','points','seating','teams'].forEach(t => document.getElementById('tab-'+t).classList.toggle('hidden', t !== tab));
     tabButtons.forEach(btn => {
         const active = btn.dataset.tab === tab;
+        if (active && btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         btn.classList.toggle('active', active);
         btn.setAttribute('aria-selected', String(active));
         btn.tabIndex = active ? 0 : -1;
@@ -255,7 +283,8 @@ function switchTab(tab) {
     if (tab === 'stats') refreshStatsSelect();
     if (tab === 'exams') refreshExamsSelect();
     if (tab === 'points') refreshPointsSelect();
-    if (tab === 'teams') renderPersonList();
+    if (tab === 'seating') refreshSeatingSelect();
+    if (tab === 'teams') { renderPersonList(); renderTeamsClassList(); }
 }
 
 // WOCHENPLAN (gemeinsame Helfer für Klassen-Formular & Detailansicht)
@@ -412,8 +441,10 @@ async function deleteClass(id) {
         delete attendanceData[id];
         delete exams[id];
         delete pointsData[id];
+        delete seatingData[id];
         if (selPointsClassId === id) selPointsClassId = null;
-        saveExams(); savePointsData();
+        if (selSeatingClassId === id) { selSeatingClassId = null; seatSel = null; }
+        saveExams(); savePointsData(); saveSeating();
         saveClasses(); saveAttendanceData(); renderClassList(); renderClassDetail();
     });
 }
@@ -1026,22 +1057,16 @@ $attendanceImportInput.addEventListener('change', () => {
     reader.readAsText(file);
 });
 
-document.getElementById('load-to-teams-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selAttendClassId);
-    if (!cls) return;
-    // Nur aktiv Mitmachende übernehmen — Verletzte sind zwar anwesend, spielen aber nicht mit.
-    const present = cls.students.filter(s => currentSessionRecords[s.id] && currentSessionRecords[s.id].status === 'present');
-    const injuredN = cls.students.filter(s => currentSessionRecords[s.id] && currentSessionRecords[s.id].status === 'injured').length;
-    if (present.length === 0) { await uiAlert('Keine Schüler(innen) als anwesend (mitmachend) markiert.'); return; }
+// Übernimmt eine Schülerliste in den Teams-Tab (ersetzt die Teilnehmerliste nach Rückfrage).
+async function loadPersonsIntoTeams(list, bannerText) {
     if (personsManual && persons.length > 0) {
         const ok = await uiConfirm(`Die aktuelle Teilnehmerliste (${persons.length} manuell erfasste Person(en)) wird ersetzt. Fortfahren?`, { okLabel: 'Ersetzen' });
         if (!ok) return;
     }
-    persons = present.map(s => ({ id: personIdCounter++, name: s.name, gender: s.gender, sporty: s.sporty === true, hobbies: sanitizeHobbies(s.hobbies) }));
+    persons = list.map(s => ({ id: personIdCounter++, name: s.name, gender: s.gender, sporty: s.sporty === true, hobbies: sanitizeHobbies(s.hobbies) }));
     personsManual = false;
     savePersons();
-    document.getElementById('source-banner-text').textContent = `Geladen aus "${cls.name}": ${present.length} von ${cls.students.length} Schüler(innen) anwesend.`
-        + (injuredN > 0 ? ` ${injuredN} verletzte Schüler(innen) wurden nicht übernommen.` : '');
+    document.getElementById('source-banner-text').textContent = bannerText;
     // Sind sportliche Schüler(innen) dabei, die Verteilung gleich darauf einstellen — sonst bleibt
     // die Auswahl auf "Kein Sport" und die Sportlichkeit wird bei der Gruppenbildung ignoriert.
     const hasSporty = persons.some(p => p.sporty === true);
@@ -1053,6 +1078,17 @@ document.getElementById('load-to-teams-btn').addEventListener('click', async () 
     }
     document.getElementById('source-banner').classList.remove('hidden');
     document.getElementById('results-section').classList.add('hidden');
+}
+
+document.getElementById('load-to-teams-btn').addEventListener('click', async () => {
+    const cls = classes.find(c => c.id === selAttendClassId);
+    if (!cls) return;
+    // Nur aktiv Mitmachende übernehmen — Verletzte sind zwar anwesend, spielen aber nicht mit.
+    const present = cls.students.filter(s => currentSessionRecords[s.id] && currentSessionRecords[s.id].status === 'present');
+    const injuredN = cls.students.filter(s => currentSessionRecords[s.id] && currentSessionRecords[s.id].status === 'injured').length;
+    if (present.length === 0) { await uiAlert('Keine Schüler(innen) als anwesend (mitmachend) markiert.'); return; }
+    await loadPersonsIntoTeams(present, `Geladen aus "${cls.name}": ${present.length} von ${cls.students.length} Schüler(innen) anwesend.`
+        + (injuredN > 0 ? ` ${injuredN} verletzte Schüler(innen) wurden nicht übernommen.` : ''));
 });
 
 // TAB: AUSWERTUNG
@@ -1958,6 +1994,322 @@ function renderPointsEntries(pd) {
     });
 }
 
+// TAB: SITZORDNUNG
+// Raster aus Zellen; Tische werden gesetzt/entfernt ("Tische setzen") oder Personen per Klick getauscht
+// ("Plätze tauschen"). Der aktuelle Plan wird pro Klasse automatisch gespeichert, benannte Varianten
+// liegen in seatingData[classId].saved.
+const $seatingSelect = document.getElementById('seating-class-select');
+const $seatingGrid = document.getElementById('seating-grid');
+
+function seatingState(clsId) {
+    if (!seatingData[clsId]) seatingData[clsId] = { current: null, saved: [] };
+    const sd = seatingData[clsId];
+    if (!sd.current) sd.current = { cols: 8, rows: 6, desks: seatingPreset('rows', 8, 6) };
+    if (!Array.isArray(sd.saved)) sd.saved = [];
+    return sd;
+}
+function seatingPreset(kind, cols, rows) {
+    const desks = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        let on = false;
+        if (kind === 'rows') on = x % 3 !== 2;
+        else if (kind === 'groups') on = x % 3 !== 2 && y % 3 !== 2;
+        else if (kind === 'u') on = x === 0 || x === cols - 1 || y === rows - 1;
+        if (on) desks.push({ x, y, s: null, l: false });
+    }
+    return desks;
+}
+function currentSeatingClass() { return classes.find(c => c.id === selSeatingClassId) || null; }
+
+function refreshSeatingSelect() {
+    const prev = $seatingSelect.value;
+    $seatingSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
+    classes.forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = String(cls.id); opt.textContent = `${cls.name} (${cls.students.length} SuS)`;
+        $seatingSelect.appendChild(opt);
+    });
+    if (prev && classes.find(c => String(c.id) === prev)) $seatingSelect.value = prev;
+    else if (selSeatingClassId !== null && classes.find(c => c.id === selSeatingClassId)) $seatingSelect.value = String(selSeatingClassId);
+    const id = parseInt($seatingSelect.value, 10);
+    selSeatingClassId = isNaN(id) ? null : id;
+    renderSeating();
+}
+$seatingSelect.addEventListener('change', () => {
+    const id = parseInt($seatingSelect.value, 10);
+    selSeatingClassId = isNaN(id) ? null : id;
+    seatSel = null;
+    renderSeating();
+});
+
+function setSeatMsg(text) {
+    const el = document.getElementById('seating-msg');
+    el.textContent = text || ''; el.classList.toggle('hidden', !text);
+}
+function setSeatMode(mode) {
+    seatMode = mode; seatSel = null;
+    renderSeating();
+}
+document.getElementById('seating-mode-edit').addEventListener('click', () => setSeatMode('edit'));
+document.getElementById('seating-mode-seat').addEventListener('click', () => setSeatMode('seat'));
+
+function renderSeating() {
+    const cls = currentSeatingClass();
+    document.getElementById('seating-empty').classList.toggle('hidden', cls !== null);
+    document.getElementById('seating-content').classList.toggle('hidden', cls === null);
+    if (!cls) return;
+    const sd = seatingState(cls.id);
+    const plan = sd.current;
+    const byId = new Map(cls.students.map(s => [s.id, s]));
+    // Personen, die nicht mehr in der Klasse sind, verlieren ihren Platz
+    plan.desks.forEach(d => { if (d.s !== null && !byId.has(d.s)) { d.s = null; d.l = false; } });
+    document.getElementById('seating-cols').value = plan.cols;
+    document.getElementById('seating-rows').value = plan.rows;
+    ['edit', 'seat'].forEach(m => {
+        const b = document.getElementById('seating-mode-' + m);
+        const on = seatMode === m;
+        b.classList.toggle('seat-mode-on', on); b.setAttribute('aria-pressed', String(on));
+    });
+    document.getElementById('seating-mode-hint').textContent = seatMode === 'edit'
+        ? 'Auf eine leere Zelle klicken, um einen Tisch zu setzen — auf einen Tisch klicken, um ihn zu entfernen.'
+        : 'Zwei Tische nacheinander anklicken, um die Personen zu tauschen. Person unten wählen und auf einen Tisch klicken, um sie zu setzen. Das Schloss fixiert einen Platz.';
+    document.getElementById('seating-print-title').textContent = `Sitzordnung ${cls.name}`;
+
+    $seatingGrid.style.gridTemplateColumns = `repeat(${plan.cols}, minmax(0, 1fr))`;
+    $seatingGrid.style.minWidth = `${plan.cols * 68}px`;
+    $seatingGrid.classList.toggle('seat-editing', seatMode === 'edit');
+    const deskAt = new Map(plan.desks.map((d, i) => [d.x + ',' + d.y, i]));
+    const frag = document.createDocumentFragment();
+    for (let y = 0; y < plan.rows; y++) for (let x = 0; x < plan.cols; x++) {
+        const i = deskAt.get(x + ',' + y);
+        if (i === undefined) {
+            const cell = document.createElement('button');
+            cell.type = 'button'; cell.className = 'seat-cell';
+            cell.dataset.x = x; cell.dataset.y = y;
+            if (seatMode === 'edit') cell.setAttribute('aria-label', `Tisch setzen (Spalte ${x + 1}, Reihe ${y + 1})`);
+            else { cell.tabIndex = -1; cell.setAttribute('aria-hidden', 'true'); }
+            frag.appendChild(cell);
+            continue;
+        }
+        const d = plan.desks[i];
+        const stu = d.s !== null ? byId.get(d.s) : null;
+        const wrap = document.createElement('div');
+        wrap.className = 'seat-wrap';
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.dataset.desk = i;
+        btn.className = 'seat-desk' + (stu ? ' seat-' + sanitizeGender(stu.gender) : ' seat-empty')
+            + (d.l ? ' seat-locked' : '') + (seatSel && seatSel.kind === 'desk' && seatSel.i === i ? ' seat-selected' : '');
+        btn.textContent = stu ? stu.name : '';
+        btn.setAttribute('aria-label', seatMode === 'edit' ? `Tisch entfernen (Spalte ${x + 1}, Reihe ${y + 1})` : (stu ? `${stu.name}, Platz auswählen oder tauschen` : 'Leerer Tisch'));
+        wrap.appendChild(btn);
+        if (stu && seatMode === 'seat') {
+            const lock = document.createElement('button');
+            lock.type = 'button'; lock.dataset.lock = i; lock.className = 'seat-lock' + (d.l ? ' on' : '');
+            lock.innerHTML = `<i class="fas fa-${d.l ? 'lock' : 'lock-open'}" aria-hidden="true"></i>`;
+            lock.setAttribute('aria-label', d.l ? `Platz von ${stu.name} lösen` : `Platz von ${stu.name} fixieren`);
+            wrap.appendChild(lock);
+        }
+        frag.appendChild(wrap);
+    }
+    $seatingGrid.replaceChildren(frag);
+
+    // Personen ohne Platz
+    const seated = new Set(plan.desks.map(d => d.s).filter(v => v !== null));
+    const un = cls.students.filter(s => !seated.has(s.id));
+    document.getElementById('seating-unseated-count').textContent = un.length;
+    const chips = document.createDocumentFragment();
+    if (un.length === 0) {
+        const p = document.createElement('span'); p.className = 'text-xs text-gray-400'; p.textContent = cls.students.length ? 'Alle haben einen Platz.' : 'Diese Klasse hat noch keine Schüler.'; chips.appendChild(p);
+    }
+    un.forEach(s => {
+        const c = document.createElement('button');
+        c.type = 'button'; c.dataset.stu = s.id;
+        c.className = 'seat-chip seat-' + sanitizeGender(s.gender) + (seatSel && seatSel.kind === 'stu' && seatSel.id === s.id ? ' seat-selected' : '');
+        c.textContent = s.name;
+        chips.appendChild(c);
+    });
+    document.getElementById('seating-unseated').replaceChildren(chips);
+    renderSeatingSaved(sd);
+}
+
+function renderSeatingSaved(sd) {
+    const list = document.getElementById('seating-saved-list');
+    const frag = document.createDocumentFragment();
+    if (sd.saved.length === 0) {
+        const li = document.createElement('li'); li.className = 'text-xs text-gray-400'; li.textContent = 'Noch nichts gespeichert.'; frag.appendChild(li);
+    }
+    sd.saved.forEach(sp => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 shadow-sm';
+        const name = document.createElement('span'); name.className = 'text-sm font-medium truncate flex-1'; name.textContent = sp.name;
+        const meta = document.createElement('span'); meta.className = 'text-xs text-gray-400 flex-shrink-0'; meta.textContent = `${sp.desks.filter(d => d.s !== null).length} Plätze`;
+        const load = document.createElement('button'); load.type = 'button'; load.dataset.load = sp.id;
+        load.className = 'text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-medium flex-shrink-0'; load.textContent = 'Laden';
+        const del = document.createElement('button'); del.type = 'button'; del.dataset.del = sp.id;
+        del.className = 'text-gray-300 hover:text-red-500 text-xs p-1 flex-shrink-0';
+        del.innerHTML = '<i class="fas fa-trash-alt" aria-hidden="true"></i>'; del.setAttribute('aria-label', `"${sp.name}" löschen`);
+        li.appendChild(name); li.appendChild(meta); li.appendChild(load); li.appendChild(del);
+        frag.appendChild(li);
+    });
+    list.replaceChildren(frag);
+}
+
+// Ein einziger Listener für das Raster (Event-Delegation statt hunderter Handler)
+$seatingGrid.addEventListener('click', e => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    setSeatMsg('');
+    const lock = e.target.closest('[data-lock]');
+    if (lock) {
+        const d = plan.desks[parseInt(lock.dataset.lock, 10)];
+        if (d && d.s !== null) { d.l = !d.l; saveSeating(); renderSeating(); }
+        return;
+    }
+    const deskBtn = e.target.closest('[data-desk]');
+    if (deskBtn) {
+        const i = parseInt(deskBtn.dataset.desk, 10);
+        const d = plan.desks[i];
+        if (!d) return;
+        if (seatMode === 'edit') { plan.desks.splice(i, 1); seatSel = null; saveSeating(); renderSeating(); return; }
+        if (seatSel === null) { if (d.s !== null) seatSel = { kind: 'desk', i }; }
+        else if (seatSel.kind === 'desk') {
+            const other = plan.desks[seatSel.i];
+            if (seatSel.i === i || !other) seatSel = null;
+            else if (d.l || other.l) { showToast('Fixierte Plätze lassen sich nicht tauschen.'); seatSel = null; }
+            else { [d.s, other.s] = [other.s, d.s]; seatSel = null; saveSeating(); }
+        } else {
+            if (d.l) showToast('Dieser Platz ist fixiert.');
+            else { d.s = seatSel.id; saveSeating(); }
+            seatSel = null;
+        }
+        renderSeating();
+        return;
+    }
+    const cell = e.target.closest('.seat-cell');
+    if (cell && seatMode === 'edit') {
+        plan.desks.push({ x: parseInt(cell.dataset.x, 10), y: parseInt(cell.dataset.y, 10), s: null, l: false });
+        saveSeating(); renderSeating();
+    }
+});
+document.getElementById('seating-unseated').addEventListener('click', e => {
+    const chip = e.target.closest('[data-stu]');
+    if (!chip) return;
+    const id = parseInt(chip.dataset.stu, 10);
+    seatSel = seatSel && seatSel.kind === 'stu' && seatSel.id === id ? null : { kind: 'stu', id };
+    if (seatMode === 'edit') seatMode = 'seat';
+    renderSeating();
+});
+
+function applySeatingSize() {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    const cols = Math.min(16, Math.max(2, parseInt(document.getElementById('seating-cols').value, 10) || plan.cols));
+    const rows = Math.min(12, Math.max(2, parseInt(document.getElementById('seating-rows').value, 10) || plan.rows));
+    if (cols === plan.cols && rows === plan.rows) return;
+    withUndo('Rastergrösse geändert.', () => {
+        plan.cols = cols; plan.rows = rows;
+        plan.desks = plan.desks.filter(d => d.x < cols && d.y < rows);
+        saveSeating(); renderSeating();
+    });
+}
+document.getElementById('seating-cols').addEventListener('change', applySeatingSize);
+document.getElementById('seating-rows').addEventListener('change', applySeatingSize);
+
+document.getElementById('seating-preset').addEventListener('change', function() {
+    const kind = this.value; this.value = '';
+    const cls = currentSeatingClass();
+    if (!kind || !cls) return;
+    const plan = seatingState(cls.id).current;
+    withUndo(kind === 'clear' ? 'Alle Tische entfernt.' : 'Vorlage angewendet.', () => {
+        const old = new Map(plan.desks.map(d => [d.x + ',' + d.y, d]));
+        plan.desks = kind === 'clear' ? [] : seatingPreset(kind, plan.cols, plan.rows).map(d => {
+            const o = old.get(d.x + ',' + d.y);
+            return o ? { ...d, s: o.s, l: o.l } : d;
+        });
+        seatSel = null; saveSeating(); renderSeating();
+    });
+});
+
+document.getElementById('seating-unseat-btn').addEventListener('click', () => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    withUndo('Plätze geleert.', () => {
+        plan.desks.forEach(d => { if (!d.l) d.s = null; });
+        seatSel = null; setSeatMsg(''); saveSeating(); renderSeating();
+    });
+});
+
+document.getElementById('seating-generate-btn').addEventListener('click', () => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    let students = cls.students;
+    if (document.getElementById('seating-only-present').checked) {
+        const sessions = Object.values(attendanceData[cls.id] || {}).sort((a, b) => b.date.localeCompare(a.date));
+        if (sessions.length === 0) { setSeatMsg('Für diese Klasse gibt es noch keinen gespeicherten Anwesenheitstermin.'); return; }
+        const recs = sessions[0].records;
+        students = students.filter(s => !recs[s.id] || recs[s.id].status !== 'absent');
+    }
+    let apart = [];
+    if (document.getElementById('seating-use-apart').checked) {
+        const byName = new Map(students.map(s => [s.name.trim().toLowerCase(), s.id]));
+        apart = apartPairs.map(([a, b]) => [byName.get(a.trim().toLowerCase()), byName.get(b.trim().toLowerCase())])
+            .filter(p => p[0] !== undefined && p[1] !== undefined && p[0] !== p[1]);
+    }
+    const res = generateSeating(plan.desks, students, { mixGender: document.getElementById('seating-mix-gender').checked, apart });
+    if (!res.ok) {
+        setSeatMsg(`Zu wenige Tische: es fehlen ${res.unplaced} Tisch(e). Bitte im Modus "Tische setzen" ergänzen.`);
+        return;
+    }
+    withUndo('Sitzordnung erstellt.', () => {
+        plan.desks = res.desks; seatSel = null;
+        saveSeating(); renderSeating();
+    });
+    setSeatMsg(res.penalty > 0 ? 'Nicht alle Wünsche (Abwechslung / "Nicht zusammen") liessen sich vollständig erfüllen.' : '');
+});
+
+document.getElementById('seating-print-btn').addEventListener('click', () => { seatSel = null; renderSeating(); window.print(); });
+
+document.getElementById('seating-save-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const cls = currentSeatingClass();
+    const input = document.getElementById('seating-save-name');
+    const name = input.value.trim().slice(0, 60);
+    if (!cls || !name) return;
+    const sd = seatingState(cls.id);
+    const copy = structuredClone(sd.current);
+    const existing = sd.saved.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (existing) { Object.assign(existing, copy); showToast(`"${existing.name}" aktualisiert.`); }
+    else { sd.saved.push({ id: seatingIdCounter++, name, ...copy }); showToast(`Als "${name}" gespeichert.`); }
+    input.value = '';
+    saveSeating(); renderSeating();
+});
+document.getElementById('seating-saved-list').addEventListener('click', e => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const sd = seatingState(cls.id);
+    const load = e.target.closest('[data-load]');
+    const del = e.target.closest('[data-del]');
+    if (load) {
+        const sp = sd.saved.find(x => x.id === parseInt(load.dataset.load, 10));
+        if (!sp) return;
+        setSeatMsg('');
+        withUndo(`"${sp.name}" geladen.`, () => {
+            sd.current = cleanSeatingPlan(structuredClone(sp), new Set(cls.students.map(s => s.id))) || sd.current;
+            seatSel = null; saveSeating(); renderSeating();
+        });
+    } else if (del) {
+        const sp = sd.saved.find(x => x.id === parseInt(del.dataset.del, 10));
+        if (!sp) return;
+        withUndo(`"${sp.name}" gelöscht.`, () => {
+            sd.saved = sd.saved.filter(x => x !== sp); saveSeating(); renderSeating();
+        });
+    }
+});
+
 // TAB 3: TEAMS
 async function addPerson(name, gender, sporty = false, { confirmDuplicate = false } = {}) {
     if (persons.find(p => p.name.toLowerCase() === name.toLowerCase())) {
@@ -2001,6 +2353,36 @@ document.getElementById('clear-all-btn').addEventListener('click', async () => {
     if (!ok) return;
     persons = []; personsManual = false; savePersons();
     await flushAndReload();
+});
+
+// Klassen direkt in den Teams-Tab laden (ohne Anwesenheitserfassung)
+function renderTeamsClassList() {
+    const list = document.getElementById('teams-class-list');
+    const checked = new Set(Array.from(list.querySelectorAll('input:checked')).map(i => i.value));
+    list.innerHTML = '';
+    document.getElementById('teams-class-empty').classList.toggle('hidden', classes.length > 0);
+    document.getElementById('teams-load-classes-btn').classList.toggle('hidden', classes.length === 0);
+    const frag = document.createDocumentFragment();
+    classes.forEach(cls => {
+        const li = document.createElement('li');
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-2 text-sm bg-white border border-gray-100 rounded-lg px-2.5 py-1.5 cursor-pointer';
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = String(cls.id); cb.className = 'h-4 w-4';
+        cb.checked = checked.has(cb.value);
+        const name = document.createElement('span'); name.className = 'flex-1 truncate'; name.textContent = cls.name;
+        const n = document.createElement('span'); n.className = 'text-xs text-gray-400'; n.textContent = `${cls.students.length} SuS`;
+        label.appendChild(cb); label.appendChild(name); label.appendChild(n);
+        li.appendChild(label); frag.appendChild(li);
+    });
+    list.appendChild(frag);
+}
+document.getElementById('teams-load-classes-btn').addEventListener('click', async () => {
+    const ids = Array.from(document.querySelectorAll('#teams-class-list input:checked')).map(i => parseInt(i.value, 10));
+    const chosen = classes.filter(c => ids.includes(c.id));
+    if (chosen.length === 0) { await uiAlert('Bitte mindestens eine Klasse auswählen.'); return; }
+    const students = chosen.flatMap(c => c.students);
+    if (students.length === 0) { await uiAlert('Die gewählten Klassen haben noch keine Schüler(innen).'); return; }
+    await loadPersonsIntoTeams(students, `Geladen aus ${chosen.map(c => `"${c.name}"`).join(' + ')}: ${students.length} Schüler(innen).`);
 });
 
 function renderPersonList() {
@@ -2273,7 +2655,8 @@ function buildBackupObject() {
         persons, personIdCounter,
         apartPairs,
         exams, examIdCounter,
-        pointsData, pointsIdCounter
+        pointsData, pointsIdCounter,
+        seatingData, seatingIdCounter
     };
 }
 
@@ -2338,12 +2721,15 @@ function applyRestoredData(result) {
     examIdCounter = result.examIdCounter || 1;
     pointsData = result.pointsData || {};
     pointsIdCounter = result.pointsIdCounter || 1;
+    seatingData = result.seatingData || {};
+    seatingIdCounter = result.seatingIdCounter || 1;
+    selSeatingClassId = null; seatSel = null;
     selPointsClassId = null;
     personsManual = false;
     activeClassId = null; selAttendClassId = null; currentSessionRecords = {};
     selExamClassId = null; selExamId = null; examDirty = false;
     attendanceDirty = false; updateDirtyHint();
-    saveClasses(); saveAttendanceData(); savePersons(); saveApartPairs(); saveExams(); savePointsData();
+    saveClasses(); saveAttendanceData(); savePersons(); saveApartPairs(); saveExams(); savePointsData(); saveSeating();
     renderClassList(); renderClassDetail(); renderPersonList();
     $attendanceSelect.value = '';
     document.getElementById('attendance-empty').classList.remove('hidden');
@@ -2419,7 +2805,7 @@ async function writeDataFile() {
     if (!fileStorageActive || !dataFileHandle) return;
     try {
         const writable = await dataFileHandle.createWritable();
-        await writable.write(JSON.stringify(buildBackupObject(), null, 2));
+        await writable.write(JSON.stringify(buildBackupObject()));
         await writable.close();
         fileWriteErrorShown = false;
         setFileStatus('connected', dataFileHandle.name);
@@ -2521,9 +2907,17 @@ document.getElementById('file-storage-disconnect-btn').addEventListener('click',
     showToast('Datendatei getrennt — Daten bleiben im Browser gespeichert.');
 });
 
-// SERVICE WORKER (offline-fähig; nur unter https/localhost möglich)
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+// SERVICE WORKER (offline-fähig; nur online unter https sinnvoll)
+// Lokal (localhost) wird bewusst KEIN Service Worker genutzt — sonst liefert Chrome nach Code-Änderungen
+// alte Dateien aus dem Cache. Vorhandene Worker/Caches von früher werden dabei entfernt.
+const isLocalDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+if ('serviceWorker' in navigator) {
+    if (isLocalDev) {
+        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+        if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+    } else if (location.protocol === 'https:') {
+        window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+    }
 }
 
 // INIT

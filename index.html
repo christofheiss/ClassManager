@@ -32,30 +32,34 @@
     </div>
 
     <!-- Tab Navigation -->
-    <div class="bg-indigo-50/70 border-b border-indigo-100 flex no-print" role="tablist" aria-label="Bereiche">
+    <div class="bg-indigo-50/70 border-b border-indigo-100 flex no-print overflow-x-auto" role="tablist" aria-label="Bereiche">
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 active" data-tab="classes"
                 id="tab-btn-classes" role="tab" aria-selected="true" aria-controls="tab-classes">
-            <i class="fas fa-chalkboard-teacher" aria-hidden="true"></i><span class="hidden sm:inline">Klassen</span><span class="text-[10px] leading-none sm:hidden">Klassen</span>
+            <i class="fas fa-chalkboard-teacher" aria-hidden="true"></i><span class="hidden sm:inline">Klassen</span><span class="text-[9px] leading-none sm:hidden">Klassen</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="attendance"
                 id="tab-btn-attendance" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-attendance">
-            <i class="fas fa-clipboard-check" aria-hidden="true"></i><span class="hidden sm:inline">Anwesenheit</span><span class="text-[10px] leading-none sm:hidden">Anwesenheit</span>
+            <i class="fas fa-clipboard-check" aria-hidden="true"></i><span class="hidden sm:inline">Anwesenheit</span><span class="text-[9px] leading-none sm:hidden">Anwesenheit</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="stats"
                 id="tab-btn-stats" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-stats">
-            <i class="fas fa-chart-bar" aria-hidden="true"></i><span class="hidden sm:inline">Auswertung</span><span class="text-[10px] leading-none sm:hidden">Auswertung</span>
+            <i class="fas fa-chart-bar" aria-hidden="true"></i><span class="hidden sm:inline">Auswertung</span><span class="text-[9px] leading-none sm:hidden">Auswertung</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="exams"
                 id="tab-btn-exams" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-exams">
-            <i class="fas fa-file-pen" aria-hidden="true"></i><span class="hidden sm:inline">Prüfungen</span><span class="text-[10px] leading-none sm:hidden">Prüfungen</span>
+            <i class="fas fa-file-pen" aria-hidden="true"></i><span class="hidden sm:inline">Prüfungen</span><span class="text-[9px] leading-none sm:hidden">Prüfungen</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="points"
                 id="tab-btn-points" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-points">
-            <i class="fas fa-star" aria-hidden="true"></i><span class="hidden sm:inline">Punkte</span><span class="text-[10px] leading-none sm:hidden">Punkte</span>
+            <i class="fas fa-star" aria-hidden="true"></i><span class="hidden sm:inline">Punkte</span><span class="text-[9px] leading-none sm:hidden">Punkte</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="teams"
                 id="tab-btn-teams" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-teams">
-            <i class="fas fa-users" aria-hidden="true"></i><span class="hidden sm:inline">Teams</span><span class="text-[10px] leading-none sm:hidden">Teams</span>
+            <i class="fas fa-users" aria-hidden="true"></i><span class="hidden sm:inline">Teams</span><span class="text-[9px] leading-none sm:hidden">Teams</span>
+        </button>
+        <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="seating"
+                id="tab-btn-seating" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-seating">
+            <i class="fas fa-chair" aria-hidden="true"></i><span class="hidden sm:inline">Sitzordnung</span><span class="text-[9px] leading-none sm:hidden">Sitzplan</span>
         </button>
     </div>
 
@@ -569,6 +573,78 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
         </div>
     </div>
 
+    <!-- TAB: SITZORDNUNG -->
+    <div id="tab-seating" class="hidden p-5 md:p-8" role="tabpanel" aria-labelledby="tab-btn-seating">
+        <div class="no-print flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
+            <div class="flex-1">
+                <label for="seating-class-select" class="block text-sm font-medium text-gray-700 mb-1">Klasse</label>
+                <select id="seating-class-select" class="w-full border rounded-md p-2 text-sm bg-white"></select>
+            </div>
+            <p class="text-xs text-gray-400 sm:max-w-xs"><i class="fas fa-floppy-disk mr-1" aria-hidden="true"></i>Der Plan wird pro Klasse automatisch gespeichert. Eigene Varianten lassen sich unten benennen und ablegen.</p>
+        </div>
+        <p id="seating-empty" class="text-center text-gray-400 py-10 text-sm"><i class="fas fa-chair text-4xl mb-3 opacity-30 block" aria-hidden="true"></i>Wähle eine Klasse, um die Sitzordnung zu planen.</p>
+        <div id="seating-content" class="hidden space-y-4">
+            <div class="no-print bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3">
+                <div class="flex flex-wrap items-end gap-3">
+                    <div>
+                        <label for="seating-cols" class="block text-xs font-medium text-gray-600 mb-1">Spalten</label>
+                        <input type="number" id="seating-cols" min="2" max="16" value="8" class="w-20 border rounded-md p-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label for="seating-rows" class="block text-xs font-medium text-gray-600 mb-1">Reihen</label>
+                        <input type="number" id="seating-rows" min="2" max="12" value="6" class="w-20 border rounded-md p-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label for="seating-preset" class="block text-xs font-medium text-gray-600 mb-1">Vorlage</label>
+                        <select id="seating-preset" class="border rounded-md p-1.5 text-sm bg-white">
+                            <option value="">Vorlage wählen…</option>
+                            <option value="rows">Reihen (Zweiertische)</option>
+                            <option value="groups">Gruppentische (4er)</option>
+                            <option value="u">U-Form</option>
+                            <option value="clear">Alle Tische entfernen</option>
+                        </select>
+                    </div>
+                    <div class="inline-flex rounded-lg overflow-hidden border border-gray-300 text-sm" role="group" aria-label="Bearbeitungsmodus">
+                        <button type="button" id="seating-mode-edit" class="seat-mode-btn px-3 py-1.5" aria-pressed="false"><i class="fas fa-border-all mr-1" aria-hidden="true"></i>Tische setzen</button>
+                        <button type="button" id="seating-mode-seat" class="seat-mode-btn px-3 py-1.5" aria-pressed="true"><i class="fas fa-arrows-left-right mr-1" aria-hidden="true"></i>Plätze tauschen</button>
+                    </div>
+                </div>
+                <p id="seating-mode-hint" class="text-xs text-gray-500"></p>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="seating-mix-gender" class="h-4 w-4"> Jungen und Mädchen abwechseln</label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="seating-use-apart" class="h-4 w-4" checked> "Nicht zusammen"-Regeln beachten</label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="seating-only-present" class="h-4 w-4"> Nur Anwesende vom letzten Termin</label>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button id="seating-generate-btn" type="button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm inline-flex items-center gap-2"><i class="fas fa-dice" aria-hidden="true"></i> Sitzordnung erstellen</button>
+                    <button id="seating-unseat-btn" type="button" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-3 rounded-lg text-sm inline-flex items-center gap-2"><i class="fas fa-eraser" aria-hidden="true"></i> Plätze leeren</button>
+                    <button id="seating-print-btn" type="button" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-3 rounded-lg text-sm inline-flex items-center gap-2"><i class="fas fa-print" aria-hidden="true"></i> Drucken</button>
+                </div>
+                <p id="seating-msg" class="text-xs text-amber-600 hidden" role="status"></p>
+            </div>
+
+            <div id="seating-print-area" class="seat-scroll">
+                <h3 id="seating-print-title" class="print-only font-bold text-lg mb-2"></h3>
+                <div class="seat-board text-center text-xs font-semibold tracking-wide text-gray-500 bg-gray-100 border border-gray-300 rounded-md py-1.5 mb-2">TAFEL / LEHRERPULT</div>
+                <div id="seating-grid" class="seat-grid" role="grid" aria-label="Sitzordnung"></div>
+            </div>
+
+            <div class="no-print">
+                <p class="text-sm font-medium text-gray-700 mb-1">Ohne Platz (<span id="seating-unseated-count">0</span>)</p>
+                <div id="seating-unseated" class="flex flex-wrap gap-1.5 min-h-[2rem]"></div>
+            </div>
+
+            <div class="no-print border-t pt-4">
+                <h3 class="text-sm font-semibold text-gray-700 mb-2">Gespeicherte Sitzordnungen</h3>
+                <form id="seating-save-form" class="flex gap-2 mb-2">
+                    <input type="text" id="seating-save-name" maxlength="60" placeholder="Name, z.B. Gruppenarbeit" aria-label="Name der Sitzordnung" class="flex-1 min-w-0 border rounded-md p-2 text-sm">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md text-sm inline-flex items-center gap-2"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Speichern</button>
+                </form>
+                <ul id="seating-saved-list" class="space-y-1.5"></ul>
+            </div>
+        </div>
+    </div>
+
     <!-- TAB 3: TEAMS -->
     <div id="tab-teams" class="hidden" role="tabpanel" aria-labelledby="tab-btn-teams">
         <div class="p-5 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 no-print">
@@ -576,6 +652,15 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                 <div id="source-banner" class="hidden bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-800 flex items-start gap-2">
                     <i class="fas fa-info-circle mt-0.5 flex-shrink-0 text-indigo-400" aria-hidden="true"></i>
                     <span id="source-banner-text"></span>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold mb-3 border-b pb-2">Klassen direkt laden</h2>
+                    <p class="text-xs text-gray-500 mb-2">Ganze Klassen übernehmen, ohne vorher die Anwesenheit zu erfassen. Mehrere Klassen können kombiniert werden.</p>
+                    <ul id="teams-class-list" class="space-y-1 mb-2 max-h-40 overflow-y-auto" aria-label="Klassen"></ul>
+                    <p id="teams-class-empty" class="hidden text-xs text-gray-400 mb-2">Noch keine Klassen vorhanden (Tab "Klassen").</p>
+                    <button id="teams-load-classes-btn" type="button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition-colors flex justify-center items-center gap-2 text-sm">
+                        <i class="fas fa-users-line" aria-hidden="true"></i> Ausgewählte Klassen laden
+                    </button>
                 </div>
                 <div>
                     <h2 class="text-lg font-semibold mb-3 border-b pb-2">Person manuell hinzufügen</h2>

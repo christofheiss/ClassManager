@@ -16,12 +16,18 @@
 
 body {
     font-family: 'Inter', system-ui, sans-serif;
+    background: #f5f7ff;
+    -webkit-font-smoothing: antialiased;
+}
+/* Hintergrund als eigene, fixierte Ebene: wird vom Compositor gehalten und beim Scrollen
+   nicht neu gezeichnet (background-attachment: fixed liess lange Seiten ruckeln). */
+body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
     background:
         radial-gradient(900px 500px at 8% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
         radial-gradient(800px 500px at 100% 0%, rgba(168, 85, 247, 0.10), transparent 55%),
         linear-gradient(180deg, #f5f7ff 0%, #f8f7ff 50%, #f1fbfc 100%);
-    background-attachment: fixed;
-    -webkit-font-smoothing: antialiased;
 }
 
 /* Header: Verlauf mit feinem Punktraster und weichen Lichtflecken */
@@ -43,8 +49,8 @@ body {
 .fade-in { animation: fadeIn 0.3s ease-in-out; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 
-.team-card { transition: transform 0.2s, box-shadow 0.2s; }
-.team-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px -8px rgba(79, 70, 229, 0.25); }
+.team-card { transition: transform 0.2s; }
+.team-card:hover { transform: translateY(-2px); }
 
 .tab-btn {
     position: relative;
@@ -63,10 +69,9 @@ body {
 .tab-btn:not(.active):hover { background: rgba(255, 255, 255, 0.65); color: var(--brand-dark); }
 .tab-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: -3px; border-radius: 10px; }
 
-.attendance-card { transition: all 0.15s; }
+.attendance-card { transition: background-color 0.15s, border-color 0.15s; }
 
 /* Sanfte Interaktion auf allen Buttons */
-button { transition: transform 0.1s ease; }
 button:active { transform: scale(0.97); }
 
 /* Dezenter Scrollbalken in Listen */
@@ -79,8 +84,12 @@ button:active { transform: scale(0.97); }
 @media print {
     body { background: white; padding: 0; }
     body * { visibility: hidden; }
-    #results-section, #results-section * { visibility: visible; }
+    #results-section, #results-section *, #seating-print-area, #seating-print-area * { visibility: visible; }
     #results-section .no-print, #results-section .no-print * { visibility: hidden; display: none; }
+    #seating-print-area { position: absolute; left: 0; top: 0; width: 100%; background: white; padding: 1cm; }
+    .print-only { display: block !important; }
+    .seat-desk, .seat-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .seat-cell { border-color: transparent !important; background: none !important; }
     #results-section {
         position: absolute; left: 0; top: 0; width: 100%;
         background: white; border: none; padding: 1cm;
@@ -119,7 +128,7 @@ button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* Listen- und Anwesenheitskarten */
 .attendance-card { box-shadow: 0 1px 2px rgba(31, 41, 55, 0.05); }
-.attendance-card:hover { box-shadow: 0 6px 14px -8px rgba(31, 41, 55, 0.25); transform: translateY(-1px); }
+
 #student-list li, #person-list li, #attendance-sessions-list li, #exam-list li, #points-entries-list li { transition: box-shadow 0.15s, border-color 0.15s; }
 #student-list li:hover, #person-list li:hover, #attendance-sessions-list li:hover { box-shadow: 0 4px 12px -6px rgba(79, 70, 229, 0.3); border-color: #c7d2fe; }
 
@@ -164,3 +173,32 @@ table thead { letter-spacing: 0.04em; }
     #attendance-grid { display: block; column-count: 2; column-gap: 0.5rem; }
     #attendance-grid > * { break-inside: avoid; margin-bottom: 0.5rem; }
 }
+
+/* ---------- Sitzordnung ---------- */
+.print-only { display: none; }
+.seat-grid { display: grid; gap: 6px; contain: layout; }
+.seat-wrap { position: relative; min-width: 0; }
+.seat-cell, .seat-desk {
+    width: 100%; min-height: 44px; height: 100%; border-radius: 10px; font-size: 0.72rem; line-height: 1.15;
+    border: 2px solid transparent; padding: 4px 6px; overflow: hidden; text-overflow: ellipsis;
+}
+.seat-cell { border: 1px dashed transparent; background: none; min-height: 44px; }
+.seat-editing .seat-cell { border-color: #cbd5e1; background: #f8fafc; cursor: copy; }
+.seat-editing .seat-cell:hover { background: #eef2ff; border-color: var(--brand); }
+.seat-desk { font-weight: 600; background: #fff; color: #1f2937; box-shadow: 0 1px 2px rgba(31, 41, 55, 0.12); word-break: break-word; }
+.seat-editing .seat-desk { cursor: no-drop; }
+.seat-female { background: #fdf2f8; border-color: #f9a8d4; }
+.seat-male { background: #eff6ff; border-color: #93c5fd; }
+.seat-diverse { background: #faf5ff; border-color: #d8b4fe; }
+.seat-empty { background: #f1f5f9; border: 2px dashed #cbd5e1; box-shadow: none; }
+.seat-desk.seat-locked { border-color: #f59e0b; }
+.seat-selected { outline: 3px solid var(--brand); outline-offset: 1px; }
+.seat-lock { position: absolute; top: 2px; right: 3px; font-size: 0.6rem; color: #9ca3af; padding: 2px 3px; border-radius: 6px; line-height: 1; }
+.seat-lock.on { color: #d97706; }
+.seat-lock:hover { background: rgba(255, 255, 255, 0.8); color: #374151; }
+.seat-chip { padding: 3px 10px; border-radius: 9999px; font-size: 0.78rem; font-weight: 500; border: 1.5px solid; }
+.seat-mode-btn { background: #fff; color: #4b5563; }
+.seat-mode-btn + .seat-mode-btn { border-left: 1px solid #d1d5db; }
+.seat-mode-on { background: var(--brand); color: #fff; font-weight: 600; }
+.seat-scroll { overflow-x: auto; padding-bottom: 4px; }
+@media print { .seat-scroll { overflow: visible; } #seating-grid { min-width: 0 !important; } }

@@ -1,7 +1,8 @@
 // Service Worker: macht die App offline-fähig.
-// Strategie: network-first mit Cache-Fallback — Updates kommen sofort an,
+// Strategie: unveränderliche Bibliotheken/Schriften (vendor/, Icons) kommen cache-first, also ohne
+// Netzwerk-Wartezeit; App-Dateien network-first mit Cache-Fallback — Updates kommen sofort an,
 // ohne Netz (z.B. Turnhalle) läuft die zuletzt geladene Version weiter.
-const CACHE_NAME = 'klassenmanager-v3';
+const CACHE_NAME = 'klassenmanager-v4';
 const ASSETS = [
     './',
     './index.html',
@@ -37,6 +38,14 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const req = event.request;
     if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+    const url = new URL(req.url);
+    if (url.pathname.includes('/vendor/') && !url.pathname.endsWith('/vendor/tailwind.css')) {
+        event.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
+            if (res && res.ok) { const copy = res.clone(); caches.open(CACHE_NAME).then(cache => cache.put(req, copy)); }
+            return res;
+        })));
+        return;
+    }
     event.respondWith(
         fetch(req)
             .then(res => {
