@@ -2331,6 +2331,114 @@ document.getElementById('seating-generate-btn').addEventListener('click', () => 
     setSeatMsg(res.penalty > 0 ? 'Nicht alle Wünsche (Abwechslung / "Nicht zusammen") liessen sich vollständig erfüllen.' : '');
 });
 
+// EXPORT als PNG / PDF (A4 quer). Gezeichnet wird direkt auf ein Canvas — ohne Fremdbibliotheken.
+// Neutrale Darstellung wie im Präsentationsmodus (keine Geschlechtsfarben).
+const EXPORT_W = 2339, EXPORT_H = 1654; // A4 quer bei 200 dpi
+function renderSeatingCanvas(cls, plan) {
+    const byId = new Map(cls.students.map(s => [s.id, s]));
+    const cv = document.createElement('canvas');
+    cv.width = EXPORT_W; cv.height = EXPORT_H;
+    const ctx = cv.getContext('2d');
+    const font = (px, weight = 600) => `${weight} ${px}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, EXPORT_W, EXPORT_H);
+    const margin = 90;
+    ctx.fillStyle = '#1e1b4b'; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.font = font(64, 800); ctx.fillText(`Sitzordnung ${cls.name}`, margin, margin + 50);
+    ctx.fillStyle = '#6b7280'; ctx.font = font(34, 500); ctx.textAlign = 'right';
+    ctx.fillText(formatDateDisplay(todayStr()), EXPORT_W - margin, margin + 48);
+    // Tafel
+    const boardY = margin + 100, boardH = 64;
+    ctx.fillStyle = '#334155';
+    ctx.beginPath(); ctx.roundRect(EXPORT_W * 0.2, boardY, EXPORT_W * 0.6, boardH, 14); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = font(34, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('T A F E L', EXPORT_W / 2, boardY + boardH / 2 + 2);
+    const desks = plan.desks;
+    if (desks.length) {
+        const minX = Math.min(...desks.map(d => d.x)), maxX = Math.max(...desks.map(d => d.x));
+        const minY = Math.min(...desks.map(d => d.y)), maxY = Math.max(...desks.map(d => d.y));
+        const cols = maxX - minX + 1, rows = maxY - minY + 1;
+        const areaX = margin, areaY = boardY + boardH + 50;
+        const areaW = EXPORT_W - 2 * margin, areaH = EXPORT_H - areaY - margin;
+        const gap = 18;
+        const cw = (areaW - gap * (cols - 1)) / cols, ch = (areaH - gap * (rows - 1)) / rows;
+        const w = Math.min(cw, ch * 2.4), h = Math.min(ch, w / 1.5); // Tische nicht unnatürlich strecken
+        const totalW = w * cols + gap * (cols - 1), totalH = h * rows + gap * (rows - 1);
+        const offX = areaX + (areaW - totalW) / 2, offY = areaY + (areaH - totalH) / 2;
+        desks.forEach(d => {
+            const x = offX + (d.x - minX) * (w + gap), y = offY + (d.y - minY) * (h + gap);
+            const stu = d.s !== null ? byId.get(d.s) : null;
+            const g = ctx.createLinearGradient(0, y, 0, y + h);
+            g.addColorStop(0, stu ? '#f6ebdc' : '#f3e6d3'); g.addColorStop(1, stu ? '#e8d3b5' : '#dec5a2');
+            ctx.fillStyle = g; ctx.strokeStyle = '#b98f5f'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.roundRect(x, y, w, h, 14); ctx.fill(); ctx.stroke();
+            if (!stu) return;
+            // Schrift so gross wie möglich, bei langen Namen auf zwei Zeilen
+            const words = stu.name.split(/\s+/);
+            let size = Math.min(54, h * 0.4), lines = [stu.name];
+            ctx.font = font(size);
+            while (size > 14) {
+                ctx.font = font(size);
+                if (ctx.measureText(stu.name).width <= w - 24) { lines = [stu.name]; break; }
+                if (words.length > 1) {
+                    const half = Math.ceil(words.length / 2);
+                    const two = [words.slice(0, half).join(' '), words.slice(half).join(' ')];
+                    if (Math.max(...two.map(t => ctx.measureText(t).width)) <= w - 24 && size * 2.3 <= h) { lines = two; break; }
+                }
+                size -= 2;
+            }
+            ctx.fillStyle = '#3b2a1a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            lines.forEach((t, i) => ctx.fillText(t, x + w / 2, y + h / 2 + (i - (lines.length - 1) / 2) * size * 1.15));
+        });
+    } else {
+        ctx.fillStyle = '#9ca3af'; ctx.font = font(40, 500); ctx.textAlign = 'center';
+        ctx.fillText('Keine Tische gesetzt', EXPORT_W / 2, EXPORT_H / 2);
+    }
+    return cv;
+}
+const canvasToBlob = (cv, type, q) => new Promise(res => cv.toBlob(res, type, q));
+
+// Minimales PDF (eine Seite A4 quer) mit dem Bild als JPEG
+function buildPdfFromJpeg(jpegBytes, imgW, imgH) {
+    const enc = new TextEncoder();
+    const parts = []; const offsets = []; let pos = 0;
+    const push = data => { const b = typeof data === 'string' ? enc.encode(data) : data; parts.push(b); pos += b.length; };
+    const obj = (n, body) => { offsets[n] = pos; push(`${n} 0 obj\n${body}\nendobj\n`); };
+    push('%PDF-1.4\n');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>');
+    const content = 'q 842 0 0 595 0 0 cm /Im0 Do Q';
+    obj(4, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    offsets[5] = pos;
+    push(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgW} /Height ${imgH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`);
+    push(jpegBytes); push('\nendstream\nendobj\n');
+    const xref = pos;
+    let x = 'xref\n0 6\n0000000000 65535 f \n';
+    for (let i = 1; i <= 5; i++) x += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+    push(x + `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    return new Blob(parts, { type: 'application/pdf' });
+}
+
+async function exportSeating(kind) {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    if (plan.desks.length === 0) { setSeatMsg('Es sind noch keine Tische gesetzt.'); return; }
+    setSeatMsg('');
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) {}
+    const cv = renderSeatingCanvas(cls, plan);
+    const base = `sitzordnung-${safeFilePart(cls.name)}-${todayStr()}`;
+    if (kind === 'png') {
+        downloadBlob(await canvasToBlob(cv, 'image/png'), `${base}.png`);
+    } else {
+        const jpg = await canvasToBlob(cv, 'image/jpeg', 0.95);
+        const bytes = new Uint8Array(await jpg.arrayBuffer());
+        downloadBlob(buildPdfFromJpeg(bytes, EXPORT_W, EXPORT_H), `${base}.pdf`);
+    }
+}
+document.getElementById('seating-png-btn').addEventListener('click', () => exportSeating('png'));
+document.getElementById('seating-pdf-btn').addEventListener('click', () => exportSeating('pdf'));
+
 document.getElementById('seating-print-btn').addEventListener('click', () => { seatSel = null; renderSeating(); window.print(); });
 
 document.getElementById('seating-save-form').addEventListener('submit', e => {

@@ -65,7 +65,7 @@ Die App hat sieben Reiter. Die Leiste bleibt beim Scrollen oben stehen.
 - **Plätze tauschen:** zwei Tische nacheinander anklicken; das Schloss **fixiert** einen Platz.
 - **Automatisch erstellen** mit Optionen: Jungen/Mädchen abwechselnd, "Nicht zusammen"-Regeln beachten, nur Anwesende vom letzten Termin. Fixierte Plätze bleiben.
 - Der aktuelle Plan wird **automatisch gespeichert**. Zusätzlich lassen sich pro Klasse beliebig viele benannte **Tischanordnungen** (nur Tische) und **Sitzordnungen** (Tische + Personen) ablegen und wieder laden.
-- Drucken und **Präsentationsmodus** (siehe unten).
+- **Export** als **PNG** oder **PDF** (A4 quer, neutrale Darstellung ohne Geschlechtsfarben), Drucken und **Präsentationsmodus** (siehe unten).
 
 ### Teams
 - Quellen: anwesende Schüler(innen) aus dem Anwesenheits-Reiter, **direkt gewählte Klassen** (auch mehrere kombiniert) oder manuell hinzugefügte Personen.
