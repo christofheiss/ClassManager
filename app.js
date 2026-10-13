@@ -519,12 +519,15 @@ document.getElementById('add-student-form').addEventListener('submit', async e =
     document.getElementById('student-name-input').focus();
 });
 
-// Hat der/die Schüler(in) erfasste Anwesenheiten? Dann beim Entfernen als "ehemalig"
-// archivieren, damit die Auswertung die Historie behalten kann.
+// Hat der/die Schüler(in) erfasste Anwesenheiten oder Prüfungsergebnisse? Dann beim Entfernen
+// als "ehemalig" archivieren, damit Auswertungen die Historie behalten können.
 function studentHasAttendance(clsId, studentId) {
     const sessions = attendanceData[clsId];
     if (!sessions) return false;
     return Object.values(sessions).some(session => session.records && session.records[studentId]);
+}
+function studentHasExamResults(clsId, studentId) {
+    return (exams[clsId] || []).some(exam => exam.results && exam.results[studentId] !== undefined);
 }
 function removeStudent(studentId) {
     const cls = classes.find(c => c.id === activeClassId);
@@ -533,7 +536,7 @@ function removeStudent(studentId) {
     if (!student) return;
     withUndo(`"${student.name}" entfernt.`, () => {
         cls.students = cls.students.filter(s => s.id !== studentId);
-        if (studentHasAttendance(cls.id, studentId)) {
+        if (studentHasAttendance(cls.id, studentId) || studentHasExamResults(cls.id, studentId)) {
             if (!Array.isArray(cls.formerStudents)) cls.formerStudents = [];
             cls.formerStudents.push({ id: student.id, name: student.name, gender: student.gender, sporty: student.sporty === true, classTag: student.classTag || '', hobbies: sanitizeHobbies(student.hobbies) });
         }
@@ -1302,6 +1305,14 @@ function refreshExamsSelect() {
         $examsSelect.appendChild(opt);
     });
     if (prev && classes.find(c => String(c.id) === prev)) { $examsSelect.value = prev; }
+    // Wurde die gewählte Klasse gelöscht, die Ansicht zurücksetzen statt veraltete Inhalte zu zeigen.
+    if (selExamClassId !== null && !classes.find(c => c.id === selExamClassId)) {
+        selExamClassId = null; selExamId = null; examDirty = false; updateExamDirtyHint();
+        document.getElementById('exams-empty').classList.remove('hidden');
+        document.getElementById('exams-content').classList.add('hidden');
+        document.getElementById('create-exam-btn').classList.add('hidden');
+        document.getElementById('new-exam-form').classList.add('hidden');
+    }
 }
 
 async function confirmDiscardExam() {
@@ -1730,7 +1741,8 @@ document.getElementById('points-adjust-btn').addEventListener('click', async () 
         title: 'Punkte anpassen', placeholder: 'z.B. 30 oder -5', okLabel: 'Weiter'
     });
     if (raw === null) return;
-    const amount = parseInt(String(raw).trim().replace(',', '.'), 10);
+    const trimmed = String(raw).trim();
+    const amount = /^[+-]?\d+$/.test(trimmed) ? parseInt(trimmed, 10) : NaN;
     if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 9999) {
         await uiAlert('Bitte eine ganze Zahl ungleich 0 eingeben (z.B. 30 oder -5).', 'Punkte anpassen');
         return;

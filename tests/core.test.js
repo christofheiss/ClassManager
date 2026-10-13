@@ -556,3 +556,15 @@ test('validateBackup: adjust-Einträge bleiben erhalten (inkl. negativer Punkte)
     assert.equal(entries[1].points, -5);
     assert.equal(entries[2].points, 9999); // auf Bereich begrenzt
 });
+
+// --- distributeTeams: kein Positions-Bias ---
+test('distributeTeams: der Überschuss landet nicht immer in Team 1', () => {
+    const ten = Array.from({ length: 10 }, (_, i) => ({ name: 'P' + i, gender: 'female', sporty: i < 5 }));
+    const bigAt = [0, 0, 0];
+    const runs = 600;
+    for (let r = 0; r < runs; r++) {
+        TG.distributeTeams(ten, 3, { balanceGender: true, balanceSport: true }).forEach((t, i) => { if (t.length === 4) bigAt[i]++; });
+    }
+    // jede Position sollte ungefähr 1/3 der Läufe das grössere Team sein (erwartet ~200)
+    bigAt.forEach(n => assert.ok(n > 120 && n < 280, `Verteilung unausgewogen: ${bigAt}`));
+});
