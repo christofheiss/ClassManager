@@ -639,3 +639,8 @@ test('validateBackup: Tischanordnungen (layouts) werden ohne Personen übernomme
     assert.equal(r.seatingData[1].layouts[0].desks[0].s, null);
     assert.equal(r.seatingIdCounter, 4);
 });
+
+test('validateBackup: Klassenart (kind) wird übernommen, Standard ist both', () => {
+    const r = validateBackup({ classes: [{ id: 1, name: 'A', kind: 'sport' }, { id: 2, name: 'B' }, { id: 3, name: 'C', kind: 'x' }, { id: 4, name: 'D', kind: 'room' }] });
+    assert.deepEqual(r.classes.map(c => c.kind), ['sport', 'both', 'both', 'room']);
+});

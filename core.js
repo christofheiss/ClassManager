@@ -324,7 +324,7 @@
             const schedule = (Array.isArray(cls.schedule) ? cls.schedule : [])
                 .filter(e => e && Number.isInteger(e.weekday) && e.weekday >= 0 && e.weekday <= 6 && typeof e.time === 'string' && TIME_RE.test(e.time))
                 .map(e => ({ weekday: e.weekday, time: e.time }));
-            cleanClasses.push({ id, name, students, formerStudents, schedule, collectsPoints: cls.collectsPoints === true });
+            cleanClasses.push({ id, name, students, formerStudents, schedule, collectsPoints: cls.collectsPoints === true, kind: ['sport', 'room'].includes(cls.kind) ? cls.kind : 'both' });
             if (id > maxClassId) maxClassId = id;
         }
         const cleanAttendance = {};

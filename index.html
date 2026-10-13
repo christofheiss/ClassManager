@@ -119,6 +119,14 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                             <i class="fas fa-plus" aria-hidden="true"></i> Termin hinzufügen
                         </button>
                     </div>
+                    <div class="mt-2">
+                        <label for="new-class-kind" class="block text-sm font-medium text-gray-700 mb-1">Unterricht mit dieser Klasse</label>
+                        <select id="new-class-kind" class="w-full border rounded-md p-2 text-sm bg-white">
+                            <option value="both">Sport und Klassenzimmer</option>
+                            <option value="sport">Nur Sport</option>
+                            <option value="room">Nur Klassenzimmer</option>
+                        </select>
+                    </div>
                     <label class="mt-2 flex items-center gap-2 text-sm cursor-pointer text-amber-800">
                         <input type="checkbox" id="new-class-points-input" class="rounded text-amber-500 h-4 w-4">
                         <span><i class="fas fa-star text-amber-400 mr-1" aria-hidden="true"></i>Klasse sammelt Punkte (Bonusstunden-Tracker, z.B. Sport)</span>
@@ -145,6 +153,14 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                     <div class="flex items-center justify-between mb-2 border-b pb-2">
                         <h2 class="text-lg font-semibold text-indigo-700" id="detail-class-name"></h2>
                         <span class="text-xs text-gray-400" id="detail-student-count"></span>
+                    </div>
+                    <div class="mb-2 flex items-center justify-between gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+                        <label for="detail-class-kind" class="text-xs font-medium text-gray-700"><i class="fas fa-chalkboard mr-1 text-gray-400" aria-hidden="true"></i>Unterricht</label>
+                        <select id="detail-class-kind" class="text-xs border rounded-md p-1.5 bg-white">
+                            <option value="both">Sport und Klassenzimmer</option>
+                            <option value="sport">Nur Sport</option>
+                            <option value="room">Nur Klassenzimmer</option>
+                        </select>
                     </div>
                     <div class="mb-2 flex items-center justify-between p-2.5 bg-amber-50 rounded-lg border border-amber-100">
                         <span class="text-xs font-medium text-amber-800"><i class="fas fa-star text-amber-400 mr-1" aria-hidden="true"></i>Punkte-Tracker (Bonusstunden)</span>

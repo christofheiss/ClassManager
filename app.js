@@ -338,6 +338,7 @@ function resetNewClassForm() {
     $newClassScheduleRows.innerHTML = '';
     createScheduleRow($newClassScheduleRows);
     document.getElementById('new-class-points-input').checked = false;
+    document.getElementById('new-class-kind').value = 'both';
 }
 
 // Standard-Ziele des Punkte-Trackers (aus der Sport-Praxis; jederzeit anpassbar).
@@ -369,7 +370,8 @@ function doCreateClass() {
     const schedule = readScheduleRows($newClassScheduleRows);
     const collectsPoints = document.getElementById('new-class-points-input').checked;
     const newId = classIdCounter++;
-    classes.push({ id: newId, name, students: [], formerStudents: [], schedule, collectsPoints });
+    const kind = document.getElementById('new-class-kind').value;
+    classes.push({ id: newId, name, students: [], formerStudents: [], schedule, collectsPoints, kind: ['sport', 'room'].includes(kind) ? kind : 'both' });
     if (collectsPoints) seedPointGoals(newId);
     saveClasses();
     // Frischer Start nach dem Anlegen, damit alle Auswahllisten (Anwesenheit,
@@ -404,6 +406,12 @@ function renderClassList() {
         badge.className = `text-xs px-2 py-0.5 rounded-full ml-1 ${isActive ? 'bg-white bg-opacity-20 text-white' : 'bg-gray-100 text-gray-500'}`;
         badge.textContent = `${cls.students.length} SuS`;
         left.appendChild(nameSpan); left.appendChild(badge);
+        if (classKind(cls) !== 'both') {
+            const kindBadge = document.createElement('span');
+            kindBadge.className = `text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-white bg-opacity-20 text-white' : classKind(cls) === 'sport' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`;
+            kindBadge.textContent = classKind(cls) === 'sport' ? 'Sport' : 'Klassenzimmer';
+            left.appendChild(kindBadge);
+        }
         left.addEventListener('click', () => selectClass(cls.id));
         const actions = document.createElement('div');
         actions.className = 'flex items-center gap-0.5 ml-2 flex-shrink-0';
@@ -463,10 +471,21 @@ function renderClassDetail() {
     document.getElementById('detail-student-count').textContent = `${cls.students.length} Schüler(in)`;
     document.getElementById('detail-schedule-edit').classList.add('hidden');
     document.getElementById('detail-schedule-display').classList.remove('hidden');
+    document.getElementById('detail-class-kind').value = classKind(cls);
     renderPointsToggle(cls);
     renderScheduleDisplayBadges(cls);
     renderStudentList(cls);
 }
+
+// Unterrichtsart der Klasse: 'sport', 'room' (Klassenzimmer) oder 'both' (Standard, auch für ältere Daten)
+function classKind(cls) { return cls.kind === 'sport' || cls.kind === 'room' ? cls.kind : 'both'; }
+document.getElementById('detail-class-kind').addEventListener('change', function() {
+    const cls = classes.find(c => c.id === activeClassId);
+    if (!cls) return;
+    cls.kind = ['sport', 'room'].includes(this.value) ? this.value : 'both';
+    saveClasses();
+    renderClassList();
+});
 
 function renderPointsToggle(cls) {
     const btn = document.getElementById('toggle-points-btn');
@@ -2029,13 +2048,14 @@ function currentSeatingClass() { return classes.find(c => c.id === selSeatingCla
 function refreshSeatingSelect() {
     const prev = $seatingSelect.value;
     $seatingSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
-    classes.forEach(cls => {
+    // Sitzordnungen gibt es nur für Klassen mit Unterricht im Klassenzimmer
+    classes.filter(c => classKind(c) !== 'sport').forEach(cls => {
         const opt = document.createElement('option');
         opt.value = String(cls.id); opt.textContent = `${cls.name} (${cls.students.length} SuS)`;
         $seatingSelect.appendChild(opt);
     });
-    if (prev && classes.find(c => String(c.id) === prev)) $seatingSelect.value = prev;
-    else if (selSeatingClassId !== null && classes.find(c => c.id === selSeatingClassId)) $seatingSelect.value = String(selSeatingClassId);
+    if (prev && classes.find(c => String(c.id) === prev && classKind(c) !== 'sport')) $seatingSelect.value = prev;
+    else if (selSeatingClassId !== null && classes.find(c => c.id === selSeatingClassId && classKind(c) !== 'sport')) $seatingSelect.value = String(selSeatingClassId);
     const id = parseInt($seatingSelect.value, 10);
     selSeatingClassId = isNaN(id) ? null : id;
     renderSeating();
@@ -2437,7 +2457,7 @@ function renderTeamsClassList() {
         const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = String(cls.id); cb.className = 'h-4 w-4';
         cb.checked = checked.has(cb.value);
         const name = document.createElement('span'); name.className = 'flex-1 truncate'; name.textContent = cls.name;
-        const n = document.createElement('span'); n.className = 'text-xs text-gray-400'; n.textContent = `${cls.students.length} SuS`;
+        const n = document.createElement('span'); n.className = 'text-xs text-gray-400'; n.textContent = `${cls.students.length} SuS` + (classKind(cls) === 'sport' ? ' · Sport' : classKind(cls) === 'room' ? ' · Klassenzimmer' : '');
         label.appendChild(cb); label.appendChild(name); label.appendChild(n);
         li.appendChild(label); frag.appendChild(li);
     });
