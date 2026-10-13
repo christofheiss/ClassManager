@@ -427,9 +427,31 @@
                 if (goals.length || entries.length) cleanPoints[classIdKey] = { goals, entries };
             }
         }
+        // Sitzordnungen: { [classId]: { current: Plan|null, saved: [ { id, name, ...Plan } ] } }
+        const cleanSeating = {};
+        let maxSeatId = 0;
+        if (data.seatingData && typeof data.seatingData === 'object' && !Array.isArray(data.seatingData)) {
+            for (const [classIdKey, sd] of Object.entries(data.seatingData)) {
+                const cls = cleanClasses.find(c => String(c.id) === classIdKey);
+                if (!cls || !sd || typeof sd !== 'object') continue;
+                const ids = new Set(cls.students.map(st => st.id));
+                const current = cleanSeatingPlan(sd.current, ids);
+                const saved = [];
+                for (const sp of (Array.isArray(sd.saved) ? sd.saved : [])) {
+                    const plan = cleanSeatingPlan(sp, ids);
+                    const name = sp && typeof sp.name === 'string' ? sp.name.trim().slice(0, 60) : '';
+                    if (!plan || !name || !Number.isInteger(sp.id) || sp.id <= 0) continue;
+                    saved.push({ id: sp.id, name, ...plan });
+                    if (sp.id > maxSeatId) maxSeatId = sp.id;
+                }
+                if (current || saved.length) cleanSeating[classIdKey] = { current, saved };
+            }
+        }
         return {
             classes: cleanClasses,
             pointsData: cleanPoints,
+            seatingData: cleanSeating,
+            seatingIdCounter: Math.max(Number.isInteger(data.seatingIdCounter) ? data.seatingIdCounter : 1, maxSeatId + 1),
             pointsIdCounter: Math.max(Number.isInteger(data.pointsIdCounter) ? data.pointsIdCounter : 1, maxPointsId + 1),
             classIdCounter: Math.max(Number.isInteger(data.classIdCounter) ? data.classIdCounter : 1, maxClassId + 1),
             stuIdCounter: Math.max(Number.isInteger(data.stuIdCounter) ? data.stuIdCounter : 1, maxStuId + 1),
@@ -443,12 +465,92 @@
         };
     }
 
+
+    // SITZORDNUNG
+    // Plan: { cols, rows, desks: [ { x, y, s: Schüler-ID|null, l: fixiert? } ] }
+    const SEAT_MAX_COLS = 16, SEAT_MAX_ROWS = 12;
+
+    function cleanSeatingPlan(plan, validIds) {
+        if (!plan || typeof plan !== 'object') return null;
+        const cols = Number.isInteger(plan.cols) ? Math.min(SEAT_MAX_COLS, Math.max(2, plan.cols)) : 8;
+        const rows = Number.isInteger(plan.rows) ? Math.min(SEAT_MAX_ROWS, Math.max(2, plan.rows)) : 6;
+        const seen = new Set(), used = new Set(), desks = [];
+        for (const d of (Array.isArray(plan.desks) ? plan.desks : [])) {
+            if (!d || !Number.isInteger(d.x) || !Number.isInteger(d.y) || d.x < 0 || d.y < 0 || d.x >= cols || d.y >= rows) continue;
+            const key = d.x + ',' + d.y;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            let s = Number.isInteger(d.s) && (!validIds || validIds.has(d.s)) && !used.has(d.s) ? d.s : null;
+            if (s !== null) used.add(s);
+            desks.push({ x: d.x, y: d.y, s, l: d.l === true && s !== null });
+        }
+        return { cols, rows, desks };
+    }
+
+    // Verteilt Schüler(innen) auf die Tische. Fixierte Tische behalten ihre Person; alle anderen
+    // Tische werden neu belegt. students: [{id, gender}]. opts: { mixGender, apart: [[idA,idB],...], rng }.
+    // Gütemass: gleiches Geschlecht nebeneinander (Strafe 1), "nicht zusammen"-Paare in der
+    // Nachbarschaft inkl. Diagonale und davor/dahinter (Strafe 20). Zufallsstart + Verbesserung durch Tauschen.
+    function generateSeating(desks, students, opts) {
+        const o = opts || {};
+        const rng = o.rng || Math.random;
+        const out = desks.map(d => ({ x: d.x, y: d.y, s: d.l === true && d.s != null ? d.s : null, l: d.l === true && d.s != null }));
+        const fixedIds = new Set(out.filter(d => d.s !== null).map(d => d.s));
+        const toPlace = students.filter(st => !fixedIds.has(st.id));
+        const free = out.filter(d => !d.l);
+        if (toPlace.length > free.length) {
+            return { desks: desks.map(d => ({ ...d })), unplaced: toPlace.length - free.length, ok: false };
+        }
+        const gender = {};
+        students.forEach(st => { gender[st.id] = st.gender; });
+        const apart = (o.apart || []).filter(p => Array.isArray(p) && p.length === 2);
+        const byPos = new Map(out.map(d => [d.x + ',' + d.y, d]));
+        const pairs = []; // Nachbarpaare (Tische) mit Gewicht
+        out.forEach(d => {
+            const right = byPos.get((d.x + 1) + ',' + d.y);
+            if (right) pairs.push([d, right, 'h']);
+            [[0, 1], [1, 1], [-1, 1]].forEach(([dx, dy]) => {
+                const n = byPos.get((d.x + dx) + ',' + (d.y + dy));
+                if (n) pairs.push([d, n, 'a']);
+            });
+        });
+        const apartSet = new Set(apart.map(p => Math.min(p[0], p[1]) + '|' + Math.max(p[0], p[1])));
+        function penalty() {
+            let sc = 0;
+            for (const [a, b, kind] of pairs) {
+                if (a.s === null || b.s === null) continue;
+                if (kind === 'h' && o.mixGender && gender[a.s] === gender[b.s]) sc += 1;
+                if (apartSet.size && apartSet.has(Math.min(a.s, b.s) + '|' + Math.max(a.s, b.s))) sc += 20;
+            }
+            return sc;
+        }
+        // Zufällige Anfangsbelegung
+        const slots = shuffleArray(free, rng);
+        const order = shuffleArray(toPlace, rng);
+        free.forEach(d => { d.s = null; });
+        order.forEach((st, i) => { slots[i].s = st.id; });
+        let best = penalty();
+        const needOpt = (o.mixGender || apartSet.size) && toPlace.length > 1;
+        if (needOpt) {
+            const n = free.length;
+            for (let it = 0; it < 3000 && best > 0; it++) {
+                const a = free[Math.floor(rng() * n)], b = free[Math.floor(rng() * n)];
+                if (a === b || (a.s === null && b.s === null)) continue;
+                [a.s, b.s] = [b.s, a.s];
+                const sc = penalty();
+                if (sc <= best) best = sc; else [a.s, b.s] = [b.s, a.s];
+            }
+        }
+        return { desks: out.map(d => ({ x: d.x, y: d.y, s: d.s, l: d.l })), unplaced: 0, ok: true, penalty: best };
+    }
+
     return {
         DATE_RE, TIME_RE, WEEKDAYS, WEEKDAYS_FULL, REASON_CATEGORIES, ATTENDANCE_STATUSES,
         sanitizeGender, sanitizeStatus, parseHobbies, sanitizeHobbies,
         todayStr, getWeekdayIndex, getSemester, formatDateDisplay,
         bulkParse, isCsvHeader, parseCsvImport, parseAttendanceCsv, escapeCsv, pointsToGrade, computePointsTotal, computePointsSeries,
         shuffleArray, distributeTeams, enforceApart,
+        cleanSeatingPlan, generateSeating,
         validateBackup
     };
 });

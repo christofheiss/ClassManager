@@ -568,3 +568,66 @@ test('distributeTeams: der Überschuss landet nicht immer in Team 1', () => {
     // jede Position sollte ungefähr 1/3 der Läufe das grössere Team sein (erwartet ~200)
     bigAt.forEach(n => assert.ok(n > 120 && n < 280, `Verteilung unausgewogen: ${bigAt}`));
 });
+
+// ---------- Sitzordnung ----------
+const { generateSeating, cleanSeatingPlan, validateBackup } = TG;
+const seatGrid = (c, r) => { const d = []; for (let y = 0; y < r; y++) for (let x = 0; x < c; x++) d.push({ x, y, s: null, l: false }); return d; };
+
+test('generateSeating: alle Schüler genau einmal platziert', () => {
+    const studs = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, gender: i % 2 ? 'male' : 'female' }));
+    const res = generateSeating(seatGrid(4, 4), studs, {});
+    assert.equal(res.ok, true);
+    const ids = res.desks.filter(d => d.s !== null).map(d => d.s).sort((a, b) => a - b);
+    assert.deepEqual(ids, studs.map(s => s.id));
+});
+
+test('generateSeating: zu wenige Tische -> ok=false mit unplaced', () => {
+    const studs = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, gender: 'male' }));
+    const res = generateSeating(seatGrid(2, 2), studs, {});
+    assert.equal(res.ok, false);
+    assert.equal(res.unplaced, 1);
+});
+
+test('generateSeating: fixierte Tische bleiben unverändert', () => {
+    const desks = seatGrid(3, 2);
+    desks[0].s = 7; desks[0].l = true;
+    const studs = [1, 2, 3, 7].map(id => ({ id, gender: 'male' }));
+    for (let i = 0; i < 20; i++) {
+        const res = generateSeating(desks, studs, {});
+        assert.equal(res.desks[0].s, 7);
+        assert.equal(res.desks.filter(d => d.s === 7).length, 1);
+    }
+});
+
+test('generateSeating: Geschlechter werden gemischt, wenn möglich', () => {
+    const studs = [1, 2, 3, 4].map(id => ({ id, gender: 'female' })).concat([5, 6, 7, 8].map(id => ({ id, gender: 'male' })));
+    const res = generateSeating(seatGrid(8, 1), studs, { mixGender: true });
+    assert.equal(res.penalty, 0);
+});
+
+test('generateSeating: "nicht zusammen" liegt nicht nebeneinander', () => {
+    const studs = Array.from({ length: 6 }, (_, i) => ({ id: i + 1, gender: 'male' }));
+    for (let i = 0; i < 20; i++) {
+        const res = generateSeating(seatGrid(3, 3), studs, { apart: [[1, 2]] });
+        const a = res.desks.find(d => d.s === 1), b = res.desks.find(d => d.s === 2);
+        assert.ok(Math.abs(a.x - b.x) > 1 || Math.abs(a.y - b.y) > 1);
+    }
+});
+
+test('cleanSeatingPlan: verwirft ungültige/doppelte Tische und unbekannte Schüler', () => {
+    const plan = cleanSeatingPlan({ cols: 4, rows: 3, desks: [
+        { x: 0, y: 0, s: 1, l: true }, { x: 0, y: 0, s: 2 }, { x: 9, y: 0, s: 3 },
+        { x: 1, y: 0, s: 99 }, { x: 2, y: 0, s: 1 }, { x: 'a', y: 0 }
+    ] }, new Set([1, 2, 3]));
+    assert.equal(plan.desks.length, 3);
+    assert.equal(plan.desks[1].s, null);
+    assert.equal(plan.desks[2].s, null);
+});
+
+test('validateBackup: seatingData wird bereinigt übernommen', () => {
+    const r = validateBackup({ classes: [{ id: 1, name: 'A', students: [{ id: 1, name: 'Max', gender: 'male' }] }],
+        seatingData: { 1: { current: { cols: 4, rows: 3, desks: [{ x: 0, y: 0, s: 1 }] }, saved: [{ id: 5, name: 'Plan', cols: 4, rows: 3, desks: [] }] }, 7: { current: null, saved: [] } } });
+    assert.equal(r.seatingData[1].saved.length, 1);
+    assert.equal(r.seatingIdCounter, 6);
+    assert.equal(r.seatingData[7], undefined);
+});
