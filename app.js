@@ -1221,10 +1221,12 @@ function renderStats() {
         recordedTd.textContent = `${row.recorded}/${sessions.length}`;
         recordedTd.title = `An ${row.recorded} von ${sessions.length} Terminen erfasst`;
         const quoteTd = document.createElement('td');
-        quoteTd.className = 'text-center px-3 py-2 font-semibold';
+        quoteTd.className = 'text-center px-3 py-2';
         if (row.quote !== null) {
-            quoteTd.textContent = `${row.quote}%`;
-            quoteTd.className += row.quote < 80 ? ' text-red-600' : row.quote < 95 ? ' text-amber-600' : ' text-green-700';
+            const chip = document.createElement('span');
+            chip.className = `quote-chip ${row.quote < 80 ? 'quote-low' : row.quote < 95 ? 'quote-mid' : 'quote-high'}`;
+            chip.textContent = `${row.quote}%`;
+            quoteTd.appendChild(chip);
         } else { quoteTd.textContent = '–'; }
         const reasonsTd = document.createElement('td');
         reasonsTd.className = 'px-3 py-2 text-xs text-gray-500';
@@ -2176,7 +2178,6 @@ function generateTeams() {
 function renderTeams(teams) {
     const container = document.getElementById('teams-container');
     container.innerHTML = '';
-    const COLORS = ['bg-blue-500','bg-green-500','bg-red-500','bg-yellow-500','bg-purple-500','bg-pink-500','bg-indigo-500','bg-teal-500'];
     teams.forEach((team, i) => {
         const fC = team.filter(p => p.gender === 'female').length;
         const mC = team.filter(p => p.gender === 'male').length;
@@ -2185,7 +2186,7 @@ function renderTeams(teams) {
         card.className = 'team-card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 flex flex-col fade-in';
         card.style.animationDelay = `${i * 0.08}s`;
         const header = document.createElement('div');
-        header.className = `${COLORS[i % COLORS.length]} text-white p-4 flex justify-between items-center`;
+        header.className = `team-hdr-${i % 8} text-white p-4 flex justify-between items-center`;
         const titleEl = document.createElement('h3'); titleEl.className = 'font-bold text-lg'; titleEl.textContent = `Team ${i + 1}`;
         const badge = document.createElement('span'); badge.className = 'bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm font-medium'; badge.textContent = `${team.length} ${team.length === 1 ? 'Person' : 'Personen'}`;
         header.appendChild(titleEl); header.appendChild(badge);
