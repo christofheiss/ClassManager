@@ -1,15 +1,25 @@
 {
+    "id": "./",
     "name": "Klassenmanager",
     "short_name": "Klassen",
-    "description": "Klassen verwalten, Anwesenheit mit Gründen erfassen, auswerten und faire Zufallsteams generieren — alles lokal im Browser.",
+    "description": "Für Lehrpersonen: Anwesenheit erfassen, Prüfungen und Bonuspunkte führen, faire Teams bilden und Sitzordnungen planen. Offline, ohne Konto, alle Daten bleiben lokal.",
     "lang": "de",
-    "start_url": ".",
-    "scope": ".",
+    "start_url": "./",
+    "scope": "./",
     "display": "standalone",
+    "orientation": "any",
     "background_color": "#eef2ff",
     "theme_color": "#4f46e5",
+    "categories": ["education", "productivity"],
     "icons": [
         { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-        { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+        { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ],
+    "shortcuts": [
+        { "name": "Anwesenheit erfassen", "short_name": "Anwesenheit", "url": "./#attendance", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+        { "name": "Teams bilden", "short_name": "Teams", "url": "./#teams", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+        { "name": "Sitzordnung", "short_name": "Sitzordnung", "url": "./#seating", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
     ]
 }

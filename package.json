@@ -1,14 +1,11 @@
 {
-  "name": "randomgroupgenerator",
-  "version": "1.0.0",
-  "description": "Team Generator - Klassen, Anwesenheit und Teams, rein clientseitig",
+  "name": "klassenmanager",
+  "version": "1.1.0",
+  "description": "Klassenmanager: Klassen, Anwesenheit, Prüfungen, Punkte, Teams und Sitzordnung, rein clientseitig",
   "scripts": {
     "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o vendor/tailwind.css --minify",
+    "build:icons": "python3 scripts/build-icons.py",
     "test": "node --test tests/*.test.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "http://local_proxy@127.0.0.1:41729/git/schmij03/RandomGroupGenerator"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.19"

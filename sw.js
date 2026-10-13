@@ -1,21 +1,22 @@
 // Service Worker: macht die App offline-fähig.
-// Strategie: unveränderliche Bibliotheken/Schriften (vendor/, Icons) kommen cache-first, also ohne
+// Strategie: unveränderliche Schriften (vendor/fonts/) kommen cache-first, also ohne
 // Netzwerk-Wartezeit; App-Dateien network-first mit Cache-Fallback — Updates kommen sofort an,
 // ohne Netz (z.B. Turnhalle) läuft die zuletzt geladene Version weiter.
-const CACHE_NAME = 'klassenmanager-v4';
+const CACHE_NAME = 'klassenmanager-v6';
 const ASSETS = [
     './',
     './index.html',
     './style.css',
     './core.js',
     './app.js',
+    './theme.js',
     './manifest.webmanifest',
     './icon.svg',
+    './icons/icon-192.png',
+    './icons/apple-touch-icon.png',
     './vendor/tailwind.css',
-    './vendor/fontawesome/css/all.min.css',
-    './vendor/fontawesome/webfonts/fa-solid-900.woff2',
-    './vendor/fontawesome/webfonts/fa-regular-400.woff2',
-    './vendor/fontawesome/webfonts/fa-brands-400.woff2',
+    './vendor/fontawesome/css/icons.min.css',
+    './vendor/fontawesome/webfonts/fa-solid-subset.woff2',
     './vendor/fonts/inter-latin-400-normal.woff2',
     './vendor/fonts/inter-latin-500-normal.woff2',
     './vendor/fonts/inter-latin-600-normal.woff2',
@@ -37,9 +38,10 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
     const req = event.request;
-    if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+    if (req.method !== 'GET') return;
     const url = new URL(req.url);
-    if (url.pathname.includes('/vendor/') && !url.pathname.endsWith('/vendor/tailwind.css')) {
+    if (url.origin !== self.location.origin) return;
+    if (url.pathname.includes('/vendor/fonts/')) {
         event.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
             if (res && res.ok) { const copy = res.clone(); caches.open(CACHE_NAME).then(cache => cache.put(req, copy)); }
             return res;
