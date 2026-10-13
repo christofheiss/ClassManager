@@ -2907,9 +2907,17 @@ document.getElementById('file-storage-disconnect-btn').addEventListener('click',
     showToast('Datendatei getrennt — Daten bleiben im Browser gespeichert.');
 });
 
-// SERVICE WORKER (offline-fähig; nur unter https/localhost möglich)
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+// SERVICE WORKER (offline-fähig; nur online unter https sinnvoll)
+// Lokal (localhost) wird bewusst KEIN Service Worker genutzt — sonst liefert Chrome nach Code-Änderungen
+// alte Dateien aus dem Cache. Vorhandene Worker/Caches von früher werden dabei entfernt.
+const isLocalDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+if ('serviceWorker' in navigator) {
+    if (isLocalDev) {
+        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+        if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+    } else if (location.protocol === 'https:') {
+        window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+    }
 }
 
 // INIT
