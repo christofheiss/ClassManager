@@ -2397,6 +2397,99 @@ document.getElementById('seating-saved-list').addEventListener('click', e => {
     }
 });
 
+// PRÄSENTATIONSMODUS — Vollbild für den Beamer (Fullscreen API, sonst Overlay über die ganze Seite).
+// Zeigt nur Namen: keine Geschlechts-/Sport-Hinweise.
+const $present = document.getElementById('present-overlay');
+const $presentBody = document.getElementById('present-body');
+let presentFit = null;
+function openPresentation(title, build, fit) {
+    document.getElementById('present-title').textContent = title;
+    $presentBody.replaceChildren();
+    build($presentBody);
+    $present.classList.remove('hidden');
+    document.body.classList.add('presenting');
+    presentFit = fit;
+    fit();
+    if ($present.requestFullscreen) $present.requestFullscreen().catch(() => {});
+    document.getElementById('present-close-btn').focus();
+}
+function closePresentation() {
+    if ($present.classList.contains('hidden')) return;
+    $present.classList.add('hidden');
+    document.body.classList.remove('presenting');
+    presentFit = null;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+document.getElementById('present-close-btn').addEventListener('click', closePresentation);
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) closePresentation(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePresentation(); });
+window.addEventListener('resize', () => { if (presentFit) presentFit(); });
+
+document.getElementById('seating-present-btn').addEventListener('click', () => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    const byId = new Map(cls.students.map(s => [s.id, s]));
+    if (plan.desks.length === 0) { setSeatMsg('Es sind noch keine Tische gesetzt.'); return; }
+    // Nur den belegten Ausschnitt des Rasters zeigen, damit die Namen möglichst gross werden
+    const minX = Math.min(...plan.desks.map(d => d.x)), maxX = Math.max(...plan.desks.map(d => d.x));
+    const minY = Math.min(...plan.desks.map(d => d.y)), maxY = Math.max(...plan.desks.map(d => d.y));
+    const cols = maxX - minX + 1, rows = maxY - minY + 1;
+    const names = plan.desks.map(d => (d.s !== null && byId.get(d.s)) ? byId.get(d.s).name : '');
+    const longest = Math.max(6, ...names.map(n => n.length));
+    openPresentation(`Sitzordnung ${cls.name}`, body => {
+        const board = document.createElement('div'); board.className = 'present-board'; board.textContent = 'Tafel';
+        const grid = document.createElement('div'); grid.className = 'present-seat-grid';
+        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+        plan.desks.forEach((d, i) => {
+            const el = document.createElement('div');
+            el.className = 'present-desk' + (names[i] ? '' : ' present-desk-empty');
+            el.style.gridColumn = String(d.x - minX + 1); el.style.gridRow = String(d.y - minY + 1);
+            el.textContent = names[i];
+            grid.appendChild(el);
+        });
+        body.appendChild(board); body.appendChild(grid);
+    }, () => {
+        const grid = $presentBody.querySelector('.present-seat-grid');
+        if (!grid) return;
+        const w = $presentBody.clientWidth / cols, h = ($presentBody.clientHeight - 60) / rows;
+        const font = Math.max(11, Math.min(44, w / (longest * 0.58), h / 2.2));
+        grid.style.fontSize = font + 'px';
+    });
+});
+
+document.getElementById('present-teams-btn').addEventListener('click', () => {
+    const teams = Array.from(document.querySelectorAll('#teams-container .team-card')).map(card => ({
+        title: card.querySelector('h3').textContent,
+        names: Array.from(card.querySelectorAll('.team-member-name')).map(n => n.textContent)
+    }));
+    if (teams.length === 0) return;
+    const n = teams.length;
+    const cols = n <= 2 ? n : n <= 4 ? 2 : n <= 6 ? 3 : 4;
+    const rows = Math.ceil(n / cols);
+    const maxSize = Math.max(...teams.map(t => t.names.length));
+    const longest = Math.max(6, ...teams.flatMap(t => t.names.map(x => x.length)));
+    openPresentation('Teams', body => {
+        const grid = document.createElement('div'); grid.className = 'present-team-grid';
+        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        teams.forEach((t, i) => {
+            const card = document.createElement('div'); card.className = 'present-team';
+            const h = document.createElement('div'); h.className = `present-team-hdr team-hdr-${i % 8}`; h.textContent = t.title;
+            const ul = document.createElement('ul');
+            t.names.forEach(nm => { const li = document.createElement('li'); li.textContent = nm; ul.appendChild(li); });
+            card.appendChild(h); card.appendChild(ul); grid.appendChild(card);
+        });
+        body.appendChild(grid);
+    }, () => {
+        const grid = $presentBody.querySelector('.present-team-grid');
+        if (!grid) return;
+        const w = $presentBody.clientWidth / cols - 30, h = ($presentBody.clientHeight - 20) / rows - 20;
+        const font = Math.max(10, Math.min(40, w / (longest * 0.62), h / (maxSize * 1.5 + 3.4)));
+        grid.style.fontSize = font + 'px';
+    });
+});
+
 // TAB 3: TEAMS
 async function addPerson(name, gender, sporty = false, { confirmDuplicate = false } = {}) {
     if (persons.find(p => p.name.toLowerCase() === name.toLowerCase())) {
