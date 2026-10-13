@@ -635,7 +635,18 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
             </div>
 
             <div class="no-print border-t pt-4">
-                <h3 class="text-sm font-semibold text-gray-700 mb-2">Gespeicherte Sitzordnungen</h3>
+                <h3 class="text-sm font-semibold text-gray-700 mb-1">Tischanordnungen dieser Klasse</h3>
+                <p class="text-xs text-gray-400 mb-2">Nur die Tische (ohne Personen) — z.B. «Klassenzimmer» oder «Gruppenarbeit». Beim Laden werden die Personen neu gesetzt.</p>
+                <form id="seating-layout-form" class="flex gap-2 mb-2">
+                    <input type="text" id="seating-layout-name" maxlength="60" placeholder="Name, z.B. Klassenzimmer" aria-label="Name der Tischanordnung" class="flex-1 min-w-0 border rounded-md p-2 text-sm">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md text-sm inline-flex items-center gap-2"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Speichern</button>
+                </form>
+                <ul id="seating-layout-list" class="space-y-1.5"></ul>
+            </div>
+
+            <div class="no-print border-t pt-4">
+                <h3 class="text-sm font-semibold text-gray-700 mb-1">Gespeicherte Sitzordnungen</h3>
+                <p class="text-xs text-gray-400 mb-2">Tische <em>und</em> Personen — beliebig viele pro Klasse.</p>
                 <form id="seating-save-form" class="flex gap-2 mb-2">
                     <input type="text" id="seating-save-name" maxlength="60" placeholder="Name, z.B. Gruppenarbeit" aria-label="Name der Sitzordnung" class="flex-1 min-w-0 border rounded-md p-2 text-sm">
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md text-sm inline-flex items-center gap-2"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Speichern</button>

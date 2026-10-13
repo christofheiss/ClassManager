@@ -631,3 +631,11 @@ test('validateBackup: seatingData wird bereinigt übernommen', () => {
     assert.equal(r.seatingIdCounter, 6);
     assert.equal(r.seatingData[7], undefined);
 });
+
+test('validateBackup: Tischanordnungen (layouts) werden ohne Personen übernommen', () => {
+    const r = validateBackup({ classes: [{ id: 1, name: 'A', students: [{ id: 1, name: 'Max', gender: 'male' }] }],
+        seatingData: { 1: { current: null, saved: [], layouts: [{ id: 3, name: 'Zimmer', cols: 4, rows: 3, desks: [{ x: 0, y: 0, s: 1, l: true }, { x: 1, y: 0 }] }] } } });
+    assert.equal(r.seatingData[1].layouts.length, 1);
+    assert.equal(r.seatingData[1].layouts[0].desks[0].s, null);
+    assert.equal(r.seatingIdCounter, 4);
+});

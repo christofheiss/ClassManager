@@ -28,7 +28,7 @@ let selExamClassId = null, selExamId = null, examDirty = false;
 let pointsData = {}, pointsIdCounter = 1;
 let selPointsClassId = null;
 let selSeatingClassId = null, seatMode = 'seat', seatSel = null;
-// seatingData: { [classId]: { current: Plan|null, saved: [ {id, name, cols, rows, desks} ] } }, Plan = { cols, rows, desks:[{x,y,s,l}] }
+// seatingData: { [classId]: { current: Plan|null, saved: [ {id, name, cols, rows, desks} ] (Sitzordnungen mit Personen), layouts: [ dito ohne Personen ] (Tischanordnungen) } }, Plan = { cols, rows, desks:[{x,y,s,l}] }
 let seatingData = {}, seatingIdCounter = 1;
 
 const GENDER_ICONS = {
@@ -142,6 +142,10 @@ function loadStorage() {
             sd.saved = (Array.isArray(sd.saved) ? sd.saved : []).map(sp => {
                 const plan = cleanSeatingPlan(sp, ids);
                 return plan && sp && Number.isInteger(sp.id) && typeof sp.name === 'string' ? { id: sp.id, name: sp.name, ...plan } : null;
+            }).filter(Boolean);
+            sd.layouts = (Array.isArray(sd.layouts) ? sd.layouts : []).map(lp => {
+                const plan = cleanSeatingPlan(lp, new Set());
+                return plan && lp && Number.isInteger(lp.id) && typeof lp.name === 'string' ? { id: lp.id, name: lp.name, ...plan } : null;
             }).filter(Boolean);
         });
     } catch(e) {}
@@ -2006,6 +2010,7 @@ function seatingState(clsId) {
     const sd = seatingData[clsId];
     if (!sd.current) sd.current = { cols: 8, rows: 6, desks: seatingPreset('rows', 8, 6) };
     if (!Array.isArray(sd.saved)) sd.saved = [];
+    if (!Array.isArray(sd.layouts)) sd.layouts = [];
     return sd;
 }
 function seatingPreset(kind, cols, rows) {
@@ -2130,6 +2135,29 @@ function renderSeating() {
     });
     document.getElementById('seating-unseated').replaceChildren(chips);
     renderSeatingSaved(sd);
+    renderSeatingLayouts(sd);
+}
+
+function renderSeatingLayouts(sd) {
+    const list = document.getElementById('seating-layout-list');
+    const frag = document.createDocumentFragment();
+    if (sd.layouts.length === 0) {
+        const li = document.createElement('li'); li.className = 'text-xs text-gray-400'; li.textContent = 'Noch keine Tischanordnung gespeichert.'; frag.appendChild(li);
+    }
+    sd.layouts.forEach(lp => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 shadow-sm';
+        const name = document.createElement('span'); name.className = 'text-sm font-medium truncate flex-1'; name.textContent = lp.name;
+        const meta = document.createElement('span'); meta.className = 'text-xs text-gray-400 flex-shrink-0'; meta.textContent = `${lp.desks.length} Tische`;
+        const load = document.createElement('button'); load.type = 'button'; load.dataset.loadLayout = lp.id;
+        load.className = 'text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-medium flex-shrink-0'; load.textContent = 'Laden';
+        const del = document.createElement('button'); del.type = 'button'; del.dataset.delLayout = lp.id;
+        del.className = 'text-gray-300 hover:text-red-500 text-xs p-1 flex-shrink-0';
+        del.innerHTML = '<i class="fas fa-trash-alt" aria-hidden="true"></i>'; del.setAttribute('aria-label', `"${lp.name}" löschen`);
+        li.appendChild(name); li.appendChild(meta); li.appendChild(load); li.appendChild(del);
+        frag.appendChild(li);
+    });
+    list.replaceChildren(frag);
 }
 
 function renderSeatingSaved(sd) {
@@ -2287,6 +2315,45 @@ document.getElementById('seating-save-form').addEventListener('submit', e => {
     input.value = '';
     saveSeating(); renderSeating();
 });
+document.getElementById('seating-layout-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const cls = currentSeatingClass();
+    const input = document.getElementById('seating-layout-name');
+    const name = input.value.trim().slice(0, 60);
+    if (!cls || !name) return;
+    const sd = seatingState(cls.id);
+    const copy = structuredClone(sd.current);
+    copy.desks = copy.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false }));
+    const existing = sd.layouts.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (existing) { Object.assign(existing, copy); showToast(`Tischanordnung "${existing.name}" aktualisiert.`); }
+    else { sd.layouts.push({ id: seatingIdCounter++, name, ...copy }); showToast(`Tischanordnung als "${name}" gespeichert.`); }
+    input.value = '';
+    saveSeating(); renderSeating();
+});
+document.getElementById('seating-layout-list').addEventListener('click', e => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const sd = seatingState(cls.id);
+    const load = e.target.closest('[data-load-layout]');
+    const del = e.target.closest('[data-del-layout]');
+    if (load) {
+        const lp = sd.layouts.find(x => x.id === parseInt(load.dataset.loadLayout, 10));
+        if (!lp) return;
+        setSeatMsg('');
+        withUndo(`Tischanordnung "${lp.name}" geladen.`, () => {
+            // Nur die Tische werden übernommen; die Personen müssen neu gesetzt werden
+            sd.current = { cols: lp.cols, rows: lp.rows, desks: lp.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false })) };
+            seatSel = null; saveSeating(); renderSeating();
+        });
+    } else if (del) {
+        const lp = sd.layouts.find(x => x.id === parseInt(del.dataset.delLayout, 10));
+        if (!lp) return;
+        withUndo(`Tischanordnung "${lp.name}" gelöscht.`, () => {
+            sd.layouts = sd.layouts.filter(x => x !== lp); saveSeating(); renderSeating();
+        });
+    }
+});
+
 document.getElementById('seating-saved-list').addEventListener('click', e => {
     const cls = currentSeatingClass();
     if (!cls) return;
