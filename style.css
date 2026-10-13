@@ -5,24 +5,40 @@
 @font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('vendor/fonts/inter-latin-700-normal.woff2') format('woff2'); }
 @font-face { font-family: 'Inter'; font-style: normal; font-weight: 800; font-display: swap; src: url('vendor/fonts/inter-latin-800-normal.woff2') format('woff2'); }
 
-body {
-    font-family: 'Inter', system-ui, sans-serif;
-    background: linear-gradient(160deg, #eef2ff 0%, #f5f3ff 45%, #ecfeff 100%);
-    background-attachment: fixed;
+:root {
+    --brand: #4f46e5;
+    --brand-dark: #4338ca;
+    --ink: #1f2937;
+    --soft: #eef2ff;
+    --line: #e5e7eb;
+    --radius: 14px;
 }
 
-/* Header mit Verlauf und dekorativen Kreisen */
-.app-header {
-    background: linear-gradient(120deg, #4f46e5 0%, #7c3aed 55%, #6366f1 100%);
+body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background:
+        radial-gradient(900px 500px at 8% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
+        radial-gradient(800px 500px at 100% 0%, rgba(168, 85, 247, 0.10), transparent 55%),
+        linear-gradient(180deg, #f5f7ff 0%, #f8f7ff 50%, #f1fbfc 100%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
 }
+
+/* Header: Verlauf mit feinem Punktraster und weichen Lichtflecken */
+.app-header {
+    background:
+        radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px) 0 0 / 18px 18px,
+        linear-gradient(120deg, #4338ca 0%, #6d28d9 55%, #4f46e5 100%);
+}
+.app-header h1 { text-shadow: 0 2px 14px rgba(30, 27, 75, 0.35); }
 .header-blob {
     position: absolute;
     border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.08);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 70%);
     pointer-events: none;
 }
-.header-blob-1 { width: 220px; height: 220px; top: -110px; left: -60px; }
-.header-blob-2 { width: 300px; height: 300px; bottom: -220px; right: -80px; }
+.header-blob-1 { width: 300px; height: 300px; top: -150px; left: -70px; }
+.header-blob-2 { width: 380px; height: 380px; bottom: -260px; right: -90px; }
 
 .fade-in { animation: fadeIn 0.3s ease-in-out; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -30,9 +46,22 @@ body {
 .team-card { transition: transform 0.2s, box-shadow 0.2s; }
 .team-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px -8px rgba(79, 70, 229, 0.25); }
 
-.tab-btn { border-bottom: 3px solid transparent; transition: all 0.2s; }
-.tab-btn.active { background: white; color: #4f46e5; border-bottom-color: #4f46e5; font-weight: 600; }
-.tab-btn:not(.active):hover { background: rgba(255,255,255,0.6); }
+.tab-btn {
+    position: relative;
+    border-bottom: 3px solid transparent;
+    transition: color 0.2s, background-color 0.2s;
+}
+.tab-btn i { transition: transform 0.2s; }
+.tab-btn:hover i { transform: translateY(-1px) scale(1.08); }
+.tab-btn.active {
+    background: #fff;
+    color: var(--brand);
+    font-weight: 600;
+    border-bottom-color: var(--brand);
+    box-shadow: 0 -6px 14px -10px rgba(79, 70, 229, 0.5);
+}
+.tab-btn:not(.active):hover { background: rgba(255, 255, 255, 0.65); color: var(--brand-dark); }
+.tab-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: -3px; border-radius: 10px; }
 
 .attendance-card { transition: all 0.15s; }
 
@@ -61,4 +90,77 @@ button:active { transform: scale(0.97); }
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
+}
+
+/* ---------- Gemeinsame Bausteine ---------- */
+
+/* Eingabefelder: einheitliche Rundung und sanfter Fokus */
+input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="password"], select, textarea {
+    border-color: #d9dcec;
+    border-radius: 10px;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+input[type="text"]:hover, input[type="number"]:hover, input[type="date"]:hover, select:hover, textarea:hover { border-color: #b8bdf0; }
+input:focus, select:focus, textarea:focus { border-color: var(--brand) !important; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15) !important; outline: none; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--brand); }
+
+/* Überschriften der Bereiche */
+#tab-classes h2, #tab-teams h2 { letter-spacing: -0.01em; border-bottom-color: #e0e7ff; }
+h3 { letter-spacing: -0.005em; }
+
+/* Primäre Buttons: leichte Tiefe und Anheben beim Überfahren */
+.bg-indigo-600, .bg-emerald-600, .bg-green-500 {
+    box-shadow: 0 1px 2px rgba(31, 41, 55, 0.12), 0 4px 10px -4px rgba(79, 70, 229, 0.35);
+}
+.bg-emerald-600 { box-shadow: 0 1px 2px rgba(31, 41, 55, 0.12), 0 4px 10px -4px rgba(5, 150, 105, 0.4); }
+.bg-green-500 { box-shadow: 0 1px 2px rgba(31, 41, 55, 0.12), 0 4px 10px -4px rgba(34, 197, 94, 0.45); }
+button.bg-indigo-600:hover, button.bg-emerald-600:hover, button.bg-green-500:hover { transform: translateY(-1px); }
+button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Listen- und Anwesenheitskarten */
+.attendance-card { box-shadow: 0 1px 2px rgba(31, 41, 55, 0.05); }
+.attendance-card:hover { box-shadow: 0 6px 14px -8px rgba(31, 41, 55, 0.25); transform: translateY(-1px); }
+#student-list li, #person-list li, #attendance-sessions-list li, #exam-list li, #points-entries-list li { transition: box-shadow 0.15s, border-color 0.15s; }
+#student-list li:hover, #person-list li:hover, #attendance-sessions-list li:hover { box-shadow: 0 4px 12px -6px rgba(79, 70, 229, 0.3); border-color: #c7d2fe; }
+
+/* Tabellen (Auswertung, Prüfungen) */
+#stats-table-body tr:hover, #exam-results-body tr:hover { background: #f7f8ff; }
+table thead { letter-spacing: 0.04em; }
+.quote-chip { display: inline-block; min-width: 3.4rem; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; }
+.quote-high { background: #dcfce7; color: #166534; }
+.quote-mid  { background: #fef3c7; color: #92400e; }
+.quote-low  { background: #fee2e2; color: #991b1b; }
+
+/* Team-Karten: stimmige Verläufe statt Standard-Primärfarben */
+.team-card { border-radius: 16px; }
+.team-hdr-0 { background: linear-gradient(135deg, #4f46e5, #6366f1); }
+.team-hdr-1 { background: linear-gradient(135deg, #0d9488, #14b8a6); }
+.team-hdr-2 { background: linear-gradient(135deg, #d97706, #f59e0b); }
+.team-hdr-3 { background: linear-gradient(135deg, #be185d, #ec4899); }
+.team-hdr-4 { background: linear-gradient(135deg, #0369a1, #0ea5e9); }
+.team-hdr-5 { background: linear-gradient(135deg, #7e22ce, #a855f7); }
+.team-hdr-6 { background: linear-gradient(135deg, #15803d, #22c55e); }
+.team-hdr-7 { background: linear-gradient(135deg, #b91c1c, #ef4444); }
+[class^="team-hdr-"] { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* Fusszeile: Aktionen als saubere Pills, kein Zeilenumbruch im Text */
+.footer-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+    padding: 0.35rem 0.8rem; border-radius: 9999px;
+    background: #fff; border: 1px solid #d9dcec; color: #4b5563; font-size: 0.75rem; font-weight: 500;
+    transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.footer-btn:hover { border-color: var(--brand); color: var(--brand); box-shadow: 0 2px 8px -4px rgba(79, 70, 229, 0.4); }
+.footer-btn-danger:hover { border-color: #ef4444; color: #dc2626; }
+.footer-btn.hidden { display: none; }
+
+/* Bewegung zurücknehmen, wenn das System es wünscht */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Anwesenheits-Raster: zwei Spalten ohne Lücken (Karten sind unterschiedlich hoch, wenn ein Grund erfasst wird) */
+@media (min-width: 640px) {
+    #attendance-grid { display: block; column-count: 2; column-gap: 0.5rem; }
+    #attendance-grid > * { break-inside: avoid; margin-bottom: 0.5rem; }
 }

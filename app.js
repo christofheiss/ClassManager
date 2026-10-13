@@ -519,12 +519,15 @@ document.getElementById('add-student-form').addEventListener('submit', async e =
     document.getElementById('student-name-input').focus();
 });
 
-// Hat der/die Schüler(in) erfasste Anwesenheiten? Dann beim Entfernen als "ehemalig"
-// archivieren, damit die Auswertung die Historie behalten kann.
+// Hat der/die Schüler(in) erfasste Anwesenheiten oder Prüfungsergebnisse? Dann beim Entfernen
+// als "ehemalig" archivieren, damit Auswertungen die Historie behalten können.
 function studentHasAttendance(clsId, studentId) {
     const sessions = attendanceData[clsId];
     if (!sessions) return false;
     return Object.values(sessions).some(session => session.records && session.records[studentId]);
+}
+function studentHasExamResults(clsId, studentId) {
+    return (exams[clsId] || []).some(exam => exam.results && exam.results[studentId] !== undefined);
 }
 function removeStudent(studentId) {
     const cls = classes.find(c => c.id === activeClassId);
@@ -533,7 +536,7 @@ function removeStudent(studentId) {
     if (!student) return;
     withUndo(`"${student.name}" entfernt.`, () => {
         cls.students = cls.students.filter(s => s.id !== studentId);
-        if (studentHasAttendance(cls.id, studentId)) {
+        if (studentHasAttendance(cls.id, studentId) || studentHasExamResults(cls.id, studentId)) {
             if (!Array.isArray(cls.formerStudents)) cls.formerStudents = [];
             cls.formerStudents.push({ id: student.id, name: student.name, gender: student.gender, sporty: student.sporty === true, classTag: student.classTag || '', hobbies: sanitizeHobbies(student.hobbies) });
         }
@@ -1218,10 +1221,12 @@ function renderStats() {
         recordedTd.textContent = `${row.recorded}/${sessions.length}`;
         recordedTd.title = `An ${row.recorded} von ${sessions.length} Terminen erfasst`;
         const quoteTd = document.createElement('td');
-        quoteTd.className = 'text-center px-3 py-2 font-semibold';
+        quoteTd.className = 'text-center px-3 py-2';
         if (row.quote !== null) {
-            quoteTd.textContent = `${row.quote}%`;
-            quoteTd.className += row.quote < 80 ? ' text-red-600' : row.quote < 95 ? ' text-amber-600' : ' text-green-700';
+            const chip = document.createElement('span');
+            chip.className = `quote-chip ${row.quote < 80 ? 'quote-low' : row.quote < 95 ? 'quote-mid' : 'quote-high'}`;
+            chip.textContent = `${row.quote}%`;
+            quoteTd.appendChild(chip);
         } else { quoteTd.textContent = '–'; }
         const reasonsTd = document.createElement('td');
         reasonsTd.className = 'px-3 py-2 text-xs text-gray-500';
@@ -1302,6 +1307,14 @@ function refreshExamsSelect() {
         $examsSelect.appendChild(opt);
     });
     if (prev && classes.find(c => String(c.id) === prev)) { $examsSelect.value = prev; }
+    // Wurde die gewählte Klasse gelöscht, die Ansicht zurücksetzen statt veraltete Inhalte zu zeigen.
+    if (selExamClassId !== null && !classes.find(c => c.id === selExamClassId)) {
+        selExamClassId = null; selExamId = null; examDirty = false; updateExamDirtyHint();
+        document.getElementById('exams-empty').classList.remove('hidden');
+        document.getElementById('exams-content').classList.add('hidden');
+        document.getElementById('create-exam-btn').classList.add('hidden');
+        document.getElementById('new-exam-form').classList.add('hidden');
+    }
 }
 
 async function confirmDiscardExam() {
@@ -1730,7 +1743,8 @@ document.getElementById('points-adjust-btn').addEventListener('click', async () 
         title: 'Punkte anpassen', placeholder: 'z.B. 30 oder -5', okLabel: 'Weiter'
     });
     if (raw === null) return;
-    const amount = parseInt(String(raw).trim().replace(',', '.'), 10);
+    const trimmed = String(raw).trim();
+    const amount = /^[+-]?\d+$/.test(trimmed) ? parseInt(trimmed, 10) : NaN;
     if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 9999) {
         await uiAlert('Bitte eine ganze Zahl ungleich 0 eingeben (z.B. 30 oder -5).', 'Punkte anpassen');
         return;
@@ -2164,7 +2178,6 @@ function generateTeams() {
 function renderTeams(teams) {
     const container = document.getElementById('teams-container');
     container.innerHTML = '';
-    const COLORS = ['bg-blue-500','bg-green-500','bg-red-500','bg-yellow-500','bg-purple-500','bg-pink-500','bg-indigo-500','bg-teal-500'];
     teams.forEach((team, i) => {
         const fC = team.filter(p => p.gender === 'female').length;
         const mC = team.filter(p => p.gender === 'male').length;
@@ -2173,7 +2186,7 @@ function renderTeams(teams) {
         card.className = 'team-card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 flex flex-col fade-in';
         card.style.animationDelay = `${i * 0.08}s`;
         const header = document.createElement('div');
-        header.className = `${COLORS[i % COLORS.length]} text-white p-4 flex justify-between items-center`;
+        header.className = `team-hdr-${i % 8} text-white p-4 flex justify-between items-center`;
         const titleEl = document.createElement('h3'); titleEl.className = 'font-bold text-lg'; titleEl.textContent = `Team ${i + 1}`;
         const badge = document.createElement('span'); badge.className = 'bg-white bg-opacity-20 rounded-full px-3 py-1 text-sm font-medium'; badge.textContent = `${team.length} ${team.length === 1 ? 'Person' : 'Personen'}`;
         header.appendChild(titleEl); header.appendChild(badge);

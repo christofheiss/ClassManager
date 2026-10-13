@@ -235,7 +235,9 @@
         } else {
             shuf.forEach((p, i) => teams[i % n].push(p));
         }
-        return teams;
+        // Die Verteilung beginnt immer bei Team 1 — ohne Durchmischen bekäme Team 1 stets den
+        // Überschuss (grösseres Team, mehr Sportliche). Team-Reihenfolge deshalb zufällig wählen.
+        return shuffleArray(teams, rng);
     }
 
     // "Nicht zusammen"-Paare: versucht Verstösse durch Tauschen zweier Personen zu
