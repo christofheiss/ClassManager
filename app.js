@@ -2280,6 +2280,18 @@ document.getElementById('seating-preset').addEventListener('change', function() 
     });
 });
 
+document.getElementById('seating-clear-desks-btn').addEventListener('click', () => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    if (plan.desks.length === 0) { seatMode = 'edit'; setSeatMsg('Es sind keine Tische vorhanden — klicke auf eine Zelle, um Tische zu setzen.'); renderSeating(); return; }
+    withUndo('Alle Tische gelöscht — jetzt neu setzen.', () => {
+        plan.desks = []; seatSel = null; seatMode = 'edit';
+        setSeatMsg('Klicke auf die Zellen, um Tische neu zu setzen. Danach "Plätze tauschen" wählen und die Sitzordnung erstellen.');
+        saveSeating(); renderSeating();
+    });
+});
+
 document.getElementById('seating-unseat-btn').addEventListener('click', () => {
     const cls = currentSeatingClass();
     if (!cls) return;
@@ -2746,7 +2758,6 @@ function renderTeams(teams) {
         const dC = team.filter(p => p.gender === 'diverse').length;
         const card = document.createElement('div');
         card.className = 'team-card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 flex flex-col fade-in';
-        card.style.animationDelay = `${i * 0.08}s`;
         const header = document.createElement('div');
         header.className = `team-hdr-${i % 8} text-white p-4 flex justify-between items-center`;
         const titleEl = document.createElement('h3'); titleEl.className = 'font-bold text-lg'; titleEl.textContent = `Team ${i + 1}`;
@@ -2758,9 +2769,9 @@ function renderTeams(teams) {
             if (!cnt) return;
             const s = document.createElement('span'); s.title = `${cnt} ${lbl}`; s.innerHTML = `<i class="fas ${icon} ${color} mr-0.5" aria-hidden="true"></i>${cnt}<span class="sr-only"> ${lbl}</span>`; stats.appendChild(s);
         });
-        const ul = document.createElement('ul'); ul.className = 'p-4 flex-grow space-y-1.5';
+        const ul = document.createElement('ul'); ul.className = 'team-members p-3 flex-grow' + (team.length > 8 ? ' team-members-2col' : '');
         team.forEach(p => {
-            const li = document.createElement('li'); li.className = 'flex items-center gap-2 py-1 border-b border-gray-50 last:border-0';
+            const li = document.createElement('li'); li.className = 'flex items-center gap-2 py-0.5 border-b border-gray-50';
             const icon = document.createElement('span'); icon.innerHTML = GENDER_ICONS[sanitizeGender(p.gender)];
             const name = document.createElement('span'); name.className = 'text-gray-700 text-sm team-member-name'; name.textContent = p.name;
             li.appendChild(icon); li.appendChild(name); ul.appendChild(li);
@@ -2769,7 +2780,7 @@ function renderTeams(teams) {
         container.appendChild(card);
     });
     document.getElementById('results-section').classList.remove('hidden');
-    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('results-section').scrollIntoView({ behavior: 'auto', block: 'start' });
 }
 
 document.getElementById('print-teams-btn').addEventListener('click', () => window.print());
@@ -3030,8 +3041,12 @@ async function syncWithDataFile() {
         else await disconnectDataFile();
         return;
     }
-    const localSnap = JSON.stringify({ c: classes, a: attendanceData, p: persons, x: apartPairs });
-    const fileSnap = JSON.stringify({ c: result.classes, a: result.attendanceData, p: result.persons, x: result.apartPairs });
+    // Beide Seiten normalisieren (gleiche Validierung), sonst gelten ältere Daten ohne neue Felder immer als "anders".
+    // Verglichen wird der gesamte Stand — auch Prüfungen, Punkte und Sitzordnungen.
+    const snapOf = r => JSON.stringify([r.classes, r.attendanceData, r.persons, r.apartPairs, r.exams, r.pointsData, r.seatingData]);
+    const localNorm = validateBackup(JSON.parse(JSON.stringify(buildBackupObject())));
+    const localSnap = localNorm ? snapOf(localNorm) : '';
+    const fileSnap = snapOf(result);
     if (localSnap === fileSnap) { setFileStatus('connected', dataFileHandle.name); return; }
     const loadIt = await uiConfirm(
         `Die Datendatei "${dataFileHandle.name}"${result.exportedAt ? ` (Stand ${formatDateDisplay(result.exportedAt.slice(0, 10))})` : ''} unterscheidet sich vom Stand in diesem Browser.\n\n"Aus Datei laden" ersetzt den Browser-Stand. "Browser-Stand behalten" überschreibt die Datei.`,
