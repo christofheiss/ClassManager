@@ -1039,9 +1039,17 @@ document.getElementById('load-to-teams-btn').addEventListener('click', async () 
     savePersons();
     document.getElementById('source-banner-text').textContent = `Geladen aus "${cls.name}": ${present.length} von ${cls.students.length} Schüler(innen) anwesend.`
         + (injuredN > 0 ? ` ${injuredN} verletzte Schüler(innen) wurden nicht übernommen.` : '');
+    // Sind sportliche Schüler(innen) dabei, die Verteilung gleich darauf einstellen — sonst bleibt
+    // die Auswahl auf "Kein Sport" und die Sportlichkeit wird bei der Gruppenbildung ignoriert.
+    const hasSporty = persons.some(p => p.sporty === true);
+    switchTab('teams');
+    const activitySel = document.getElementById('activity-select');
+    if (hasSporty && activitySel.value === 'none') {
+        activitySel.value = 'general';
+        document.getElementById('source-banner-text').textContent += ' Sportlichkeit wird fair verteilt (Auswahl "Wofür sind die Gruppen?" anpassbar).';
+    }
     document.getElementById('source-banner').classList.remove('hidden');
     document.getElementById('results-section').classList.add('hidden');
-    switchTab('teams');
 });
 
 // TAB: AUSWERTUNG
