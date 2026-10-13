@@ -236,3 +236,13 @@ body.presenting { overflow: hidden; }
 .seat-desk.seat-locked { border-color: #d97706; box-shadow: 0 0 0 2px #fde68a, 0 2px 0 rgba(31, 41, 55, 0.18); }
 .seat-editing .seat-cell { border-color: #94a3b8; background: #f1f5f9; }
 .seat-editing .seat-cell:hover { background: #e0e7ff; border-color: #4f46e5; }
+
+/* Tische leicht bräunlich (Holzton); das Geschlecht zeigt nur noch der Rand */
+.seat-desk { background: linear-gradient(180deg, #f6ebdc, #e8d3b5); color: #3b2a1a; }
+.seat-desk.seat-female { border-color: #ec4899; }
+.seat-desk.seat-male { border-color: #3b82f6; }
+.seat-desk.seat-diverse { border-color: #a855f7; }
+.seat-desk.seat-empty { background: linear-gradient(180deg, #f3e6d3, #dec5a2); border: 2px solid #b98f5f; color: #7a5a35; }
+.seat-desk.seat-locked { border-color: #d97706; }
+.present-desk { background: linear-gradient(180deg, #f6ebdc, #e8d3b5); border-color: #b98f5f; color: #3b2a1a; }
+.present-desk-empty { background: transparent; border: 2px dashed #d9c3a3; }
