@@ -655,3 +655,44 @@ test('validateBackup ist idempotent (Datendatei-Abgleich vergleicht normalisiert
     const pick = r => JSON.stringify([r.classes, r.attendanceData, r.persons, r.apartPairs, r.exams, r.pointsData, r.seatingData]);
     assert.equal(pick(once), pick(twice));
 });
+
+// --- CSV aus Excel: BOM, Anführungszeichen, Tabs ---
+test('splitCsvLine: Anführungszeichen schützen Trennzeichen, "" wird zu "', () => {
+    assert.deepEqual(TG.splitCsvLine('15.09.2025;Max;abwesend;Krank;"Grippe; Fieber"'), ['15.09.2025', 'Max', 'abwesend', 'Krank', 'Grippe; Fieber']);
+    assert.deepEqual(TG.splitCsvLine('7a,"Müller, Anna",w'), ['7a', 'Müller, Anna', 'w']);
+    assert.deepEqual(TG.splitCsvLine('a;"sagt ""hallo""";c'), ['a', 'sagt "hallo"', 'c']);
+    assert.deepEqual(TG.splitCsvLine('7a\tAnna\tw'), ['7a', 'Anna', 'w']);
+});
+
+test('parseCsvImport: BOM am Dateianfang verhindert die Kopfzeilen-Erkennung nicht', () => {
+    const rows = TG.parseCsvImport('﻿Klasse;Name;Geschlecht\n7a;Anna;w');
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].studentName, 'Anna');
+});
+
+test('parseCsvImport: Hobbys mit Komma in Anführungszeichen', () => {
+    const rows = TG.parseCsvImport('7a;Anna;w;s;;"Fussball, Tennis"');
+    assert.deepEqual(rows[0].hobbies, ['Fussball', 'Tennis']);
+});
+
+test('parseAttendanceCsv: BOM und Notiz mit Komma (Semikolon-Datei)', () => {
+    const { rows, invalid } = TG.parseAttendanceCsv('﻿Datum;Name;Status;Grund;Notiz\n01.09.2025;Max;abwesend;Krank;Grippe, Fieber');
+    assert.equal(invalid.length, 0);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].note, 'Grippe, Fieber');
+});
+
+test('generateSeating: "Nicht zusammen"-Paar sitzt nicht nebeneinander (grosses Raster)', () => {
+    const desks = [];
+    for (let y = 0; y < 6; y++) for (let x = 0; x < 8; x++) desks.push({ x, y, s: null, l: false });
+    const studs = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, gender: i % 2 ? 'male' : 'female' }));
+    for (let run = 0; run < 10; run++) {
+        const res = TG.generateSeating(desks, studs, { mixGender: true, apart: [[1, 2], [3, 4]] });
+        assert.equal(res.ok, true);
+        const pos = id => res.desks.find(d => d.s === id);
+        for (const [a, b] of [[1, 2], [3, 4]]) {
+            const pa = pos(a), pb = pos(b);
+            assert.ok(Math.abs(pa.x - pb.x) > 1 || Math.abs(pa.y - pb.y) > 1, 'Paar sitzt benachbart');
+        }
+    }
+});

@@ -37,6 +37,25 @@ const GENDER_ICONS = {
     diverse: '<i class="fas fa-genderless text-purple-500" title="Divers" aria-hidden="true"></i><span class="sr-only">divers</span>'
 };
 function genderIconEl(g) { const span = document.createElement('span'); span.innerHTML = GENDER_ICONS[sanitizeGender(g)]; return span; }
+// Tabellenzelle mit Geschlechts-Symbol, Name und ggf. "ehemalig" (Flex im inneren div, nicht am td).
+function nameCell(student, former, padCls) {
+    const td = document.createElement('td');
+    td.className = padCls;
+    const wrap = document.createElement('div');
+    wrap.className = 'flex items-center gap-2';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'font-medium';
+    nameSpan.textContent = student.name;
+    wrap.append(genderIconEl(student.gender), nameSpan);
+    if (former) {
+        const badge = document.createElement('span');
+        badge.className = 'text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full';
+        badge.textContent = 'ehemalig';
+        wrap.appendChild(badge);
+    }
+    td.appendChild(wrap);
+    return td;
+}
 
 // STORAGE
 let storageWarned = false;
@@ -48,107 +67,65 @@ function storageWarn() {
 }
 document.getElementById('storage-warning-close').addEventListener('click', () => document.getElementById('storage-warning').classList.add('hidden'));
 
-function saveClasses() {
-    try { localStorage.setItem('tg2_classes', JSON.stringify(classes)); localStorage.setItem('tg2_classId', String(classIdCounter)); localStorage.setItem('tg2_stuId', String(stuIdCounter)); } catch(e) { storageWarn(); }
-    scheduleDataFileWrite();
-}
-function savePersons() {
-    try { localStorage.setItem('tg2_persons', JSON.stringify(persons)); localStorage.setItem('tg2_personId', String(personIdCounter)); localStorage.setItem('tg2_personsManual', personsManual ? '1' : '0'); } catch(e) { storageWarn(); }
-    scheduleDataFileWrite();
-}
-function saveAttendanceData() {
-    try { localStorage.setItem('tg2_attendance', JSON.stringify(attendanceData)); } catch(e) { storageWarn(); }
-    scheduleDataFileWrite();
-}
-function saveApartPairs() {
-    try { localStorage.setItem('tg2_apart', JSON.stringify(apartPairs)); } catch(e) { storageWarn(); }
-    scheduleDataFileWrite();
-}
-function saveExams() {
-    try { localStorage.setItem('tg2_exams', JSON.stringify(exams)); localStorage.setItem('tg2_examId', String(examIdCounter)); } catch(e) { storageWarn(); }
-    scheduleDataFileWrite();
-}
-function savePointsData() {
-    try { localStorage.setItem('tg2_points', JSON.stringify(pointsData)); localStorage.setItem('tg2_pointsId', String(pointsIdCounter)); } catch(e) { storageWarn(); }
-    scheduleDataFileWrite();
-}
-function saveSeating() {
-    try { localStorage.setItem('tg2_seating', JSON.stringify(seatingData)); localStorage.setItem('tg2_seatingId', String(seatingIdCounter)); } catch(e) { storageWarn(); }
-    scheduleDataFileWrite();
-}
-function loadStorage() {
+// Jeder Datenbereich mit seinen localStorage-Schlüsseln. persist('classes', ...) schreibt die
+// genannten Bereiche und stösst danach (falls verbunden) das Schreiben der Datendatei an.
+const STORE = {
+    classes:    () => ({ tg2_classes: classes, tg2_classId: classIdCounter, tg2_stuId: stuIdCounter }),
+    persons:    () => ({ tg2_persons: persons, tg2_personId: personIdCounter, tg2_personsManual: personsManual ? '1' : '0' }),
+    attendance: () => ({ tg2_attendance: attendanceData }),
+    apart:      () => ({ tg2_apart: apartPairs }),
+    exams:      () => ({ tg2_exams: exams, tg2_examId: examIdCounter }),
+    points:     () => ({ tg2_points: pointsData, tg2_pointsId: pointsIdCounter }),
+    seating:    () => ({ tg2_seating: seatingData, tg2_seatingId: seatingIdCounter })
+};
+function persist(...parts) {
     try {
-        const c = localStorage.getItem('tg2_classes');
-        if (c) {
-            const parsed = JSON.parse(c);
-            if (Array.isArray(parsed)) {
-                classes = parsed;
-                classes.forEach(cls => {
-                    if (!Array.isArray(cls.students)) cls.students = [];
-                    if (!Array.isArray(cls.formerStudents)) cls.formerStudents = [];
-                    if (!Array.isArray(cls.schedule)) cls.schedule = [];
-                    cls.students.forEach(s => { s.gender = sanitizeGender(s.gender); s.sporty = s.sporty === true; s.classTag = typeof s.classTag === 'string' ? s.classTag.slice(0, 20).trim() : ''; s.hobbies = sanitizeHobbies(s.hobbies); });
-                    cls.formerStudents.forEach(s => { s.gender = sanitizeGender(s.gender); s.sporty = s.sporty === true; s.classTag = typeof s.classTag === 'string' ? s.classTag.slice(0, 20).trim() : ''; s.hobbies = sanitizeHobbies(s.hobbies); });
-                });
-                classIdCounter = parseInt(localStorage.getItem('tg2_classId')||'1',10) || 1;
-                stuIdCounter = parseInt(localStorage.getItem('tg2_stuId')||'1',10) || 1;
-            }
-        }
-        const p = localStorage.getItem('tg2_persons');
-        if (p) {
-            const parsed = JSON.parse(p);
-            if (Array.isArray(parsed)) {
-                persons = parsed;
-                persons.forEach(x => { x.gender = sanitizeGender(x.gender); x.sporty = x.sporty === true; x.hobbies = sanitizeHobbies(x.hobbies); });
-                personIdCounter = parseInt(localStorage.getItem('tg2_personId')||'1',10) || 1;
-            }
-        }
-        personsManual = localStorage.getItem('tg2_personsManual') === '1';
-        const a = localStorage.getItem('tg2_attendance');
-        if (a) {
-            const parsed = JSON.parse(a);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) attendanceData = parsed;
-        }
-        const ap = localStorage.getItem('tg2_apart');
-        if (ap) {
-            const parsed = JSON.parse(ap);
-            if (Array.isArray(parsed)) apartPairs = parsed.filter(x => Array.isArray(x) && x.length === 2 && typeof x[0] === 'string' && typeof x[1] === 'string');
-        }
-        const ex = localStorage.getItem('tg2_exams');
-        if (ex) {
-            const parsed = JSON.parse(ex);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) exams = parsed;
-            examIdCounter = parseInt(localStorage.getItem('tg2_examId')||'1',10) || 1;
-        }
-        const pts = localStorage.getItem('tg2_points');
-        if (pts) {
-            const parsed = JSON.parse(pts);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) pointsData = parsed;
-            pointsIdCounter = parseInt(localStorage.getItem('tg2_pointsId')||'1',10) || 1;
-        }
-        const seat = localStorage.getItem('tg2_seating');
-        if (seat) {
-            const parsed = JSON.parse(seat);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) seatingData = parsed;
-            seatingIdCounter = parseInt(localStorage.getItem('tg2_seatingId')||'1',10) || 1;
-        }
-        // Beschädigte oder veraltete Sitzpläne (z.B. gelöschte Schüler) bereinigen
-        Object.keys(seatingData).forEach(k => {
-            const cls = classes.find(c => String(c.id) === k);
-            const sd = seatingData[k];
-            if (!cls || !sd || typeof sd !== 'object') { delete seatingData[k]; return; }
-            const ids = new Set(cls.students.map(st => st.id));
-            sd.current = cleanSeatingPlan(sd.current, ids);
-            sd.saved = (Array.isArray(sd.saved) ? sd.saved : []).map(sp => {
-                const plan = cleanSeatingPlan(sp, ids);
-                return plan && sp && Number.isInteger(sp.id) && typeof sp.name === 'string' ? { id: sp.id, name: sp.name, ...plan } : null;
-            }).filter(Boolean);
-            sd.layouts = (Array.isArray(sd.layouts) ? sd.layouts : []).map(lp => {
-                const plan = cleanSeatingPlan(lp, new Set());
-                return plan && lp && Number.isInteger(lp.id) && typeof lp.name === 'string' ? { id: lp.id, name: lp.name, ...plan } : null;
-            }).filter(Boolean);
-        });
-    } catch(e) {}
+        parts.forEach(part => Object.entries(STORE[part]()).forEach(([k, v]) =>
+            localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v))));
+    } catch (e) { storageWarn(); }
+    scheduleDataFileWrite();
+}
+const persistAll = () => persist(...Object.keys(STORE));
+const saveClasses = () => persist('classes');
+const savePersons = () => persist('persons');
+const saveAttendanceData = () => persist('attendance');
+const saveApartPairs = () => persist('apart');
+const saveExams = () => persist('exams');
+const savePointsData = () => persist('points');
+const saveSeating = () => persist('seating');
+
+// Übernimmt einen validierten Datenstand (Format von validateBackup) in den App-Zustand.
+function setData(d) {
+    classes = d.classes; classIdCounter = d.classIdCounter; stuIdCounter = d.stuIdCounter;
+    attendanceData = d.attendanceData;
+    persons = d.persons; personIdCounter = d.personIdCounter;
+    apartPairs = d.apartPairs || [];
+    exams = d.exams || {}; examIdCounter = d.examIdCounter || 1;
+    pointsData = d.pointsData || {}; pointsIdCounter = d.pointsIdCounter || 1;
+    seatingData = d.seatingData || {}; seatingIdCounter = d.seatingIdCounter || 1;
+}
+
+// Laden läuft durch dieselbe Validierung wie ein Backup-Import: beschädigte oder veraltete
+// Einträge werden bereinigt, ID-Zähler können nie hinter vorhandene IDs zurückfallen.
+function loadStorage() {
+    const read = key => {
+        try { const v = localStorage.getItem(key); return v === null ? undefined : JSON.parse(v); }
+        catch (e) { return undefined; }
+    };
+    const rawClasses = read('tg2_classes');
+    const data = validateBackup({
+        classes: (Array.isArray(rawClasses) ? rawClasses : [])
+            .filter(c => c && Number.isInteger(c.id) && c.id > 0 && typeof c.name === 'string' && c.name.trim()),
+        classIdCounter: read('tg2_classId'), stuIdCounter: read('tg2_stuId'),
+        attendanceData: read('tg2_attendance'),
+        persons: read('tg2_persons'), personIdCounter: read('tg2_personId'),
+        apartPairs: read('tg2_apart'),
+        exams: read('tg2_exams'), examIdCounter: read('tg2_examId'),
+        pointsData: read('tg2_points'), pointsIdCounter: read('tg2_pointsId'),
+        seatingData: read('tg2_seating'), seatingIdCounter: read('tg2_seatingId')
+    });
+    if (data) setData(data);
+    try { personsManual = localStorage.getItem('tg2_personsManual') === '1'; } catch (e) {}
 }
 
 // MODAL-DIALOGE (ersetzen alert/confirm/prompt)
@@ -203,7 +180,9 @@ const uiConfirm = (message, opts = {}) => showModal({ message, cancelLabel: 'Abb
 const uiPrompt  = (message, opts = {}) => showModal({ message, input: true, cancelLabel: 'Abbrechen', ...opts });
 
 // TOASTS + UNDO
-function showToast(message, { undo = null, duration = 6000 } = {}) {
+// action: { label, fn } zeigt einen Knopf im Toast (z.B. "Rückgängig").
+function showToast(message, { undo = null, action = null, duration = 6000 } = {}) {
+    if (undo) action = { label: 'Rückgängig', fn: undo };
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = 'toast bg-gray-900 text-white text-sm rounded-xl shadow-lg px-4 py-2.5 flex items-center gap-3 fade-in';
@@ -213,11 +192,11 @@ function showToast(message, { undo = null, duration = 6000 } = {}) {
     toast.appendChild(span);
     let removed = false;
     const remove = () => { if (removed) return; removed = true; toast.remove(); };
-    if (undo) {
+    if (action) {
         const btn = document.createElement('button');
         btn.className = 'text-indigo-300 hover:text-indigo-100 font-semibold flex-shrink-0';
-        btn.textContent = 'Rückgängig';
-        btn.addEventListener('click', () => { remove(); undo(); });
+        btn.textContent = action.label;
+        btn.addEventListener('click', () => { remove(); action.fn(); });
         toast.appendChild(btn);
     }
     container.appendChild(toast);
@@ -225,38 +204,15 @@ function showToast(message, { undo = null, duration = 6000 } = {}) {
 }
 function snapshotState() {
     return {
-        classes: structuredClone(classes),
-        attendanceData: structuredClone(attendanceData),
-        persons: structuredClone(persons),
-        exams: structuredClone(exams),
-        pointsData: structuredClone(pointsData),
-        seatingData: structuredClone(seatingData),
-        classIdCounter, stuIdCounter, personIdCounter, examIdCounter, pointsIdCounter, seatingIdCounter,
+        data: structuredClone(buildBackupObject()),
         activeClassId, selAttendClassId, personsManual
     };
 }
 function restoreState(snap) {
-    classes = snap.classes; attendanceData = snap.attendanceData; persons = snap.persons;
-    exams = snap.exams; pointsData = snap.pointsData; seatingData = snap.seatingData || {}; seatingIdCounter = snap.seatingIdCounter || 1;
-    classIdCounter = snap.classIdCounter; stuIdCounter = snap.stuIdCounter; personIdCounter = snap.personIdCounter;
-    examIdCounter = snap.examIdCounter; pointsIdCounter = snap.pointsIdCounter;
+    setData(snap.data);
     activeClassId = snap.activeClassId; selAttendClassId = snap.selAttendClassId; personsManual = snap.personsManual;
-    saveClasses(); saveAttendanceData(); savePersons(); saveExams(); savePointsData(); saveSeating();
-    renderClassList(); renderClassDetail(); renderPersonList();
-    refreshAttendanceSelect(); refreshStatsSelect();
-    const attSel = document.getElementById('attendance-class-select');
-    if (selAttendClassId !== null && classes.find(c => c.id === selAttendClassId)) {
-        attSel.value = String(selAttendClassId);
-        document.getElementById('attendance-empty').classList.add('hidden');
-        document.getElementById('attendance-content').classList.remove('hidden');
-        loadAttendanceSession();
-    } else {
-        attSel.value = '';
-        document.getElementById('attendance-empty').classList.remove('hidden');
-        document.getElementById('attendance-content').classList.add('hidden');
-    }
-    renderStats();
-    renderSeating();
+    persistAll();
+    refreshAllViews();
 }
 // Führt eine destruktive Änderung aus und bietet danach "Rückgängig" per Toast an.
 function withUndo(message, mutate) {
@@ -265,7 +221,18 @@ function withUndo(message, mutate) {
     showToast(message, { undo: () => restoreState(snap) });
 }
 
-// TABS
+// TABS — der aktive Reiter steht im URL-Hash (#teams), bleibt also beim Neuladen erhalten
+// und lässt sich als Lesezeichen bzw. App-Verknüpfung öffnen.
+const TAB_ENTER = {
+    classes: () => {},
+    attendance: () => enterAttendanceTab(),
+    stats: () => enterStatsTab(),
+    exams: () => enterExamsTab(),
+    points: () => enterPointsTab(),
+    seating: () => refreshSeatingSelect(),
+    teams: () => { renderPersonList(); renderTeamsClassList(); }
+};
+let currentTab = 'classes';
 const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
 tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 tabButtons.forEach((btn, i) => btn.addEventListener('keydown', e => {
@@ -275,7 +242,9 @@ tabButtons.forEach((btn, i) => btn.addEventListener('keydown', e => {
     next.focus(); switchTab(next.dataset.tab);
 }));
 function switchTab(tab) {
-    ['classes','attendance','stats','exams','points','seating','teams'].forEach(t => document.getElementById('tab-'+t).classList.toggle('hidden', t !== tab));
+    if (!TAB_ENTER[tab]) tab = 'classes';
+    currentTab = tab;
+    Object.keys(TAB_ENTER).forEach(t => document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab));
     tabButtons.forEach(btn => {
         const active = btn.dataset.tab === tab;
         if (active && btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -283,13 +252,28 @@ function switchTab(tab) {
         btn.setAttribute('aria-selected', String(active));
         btn.tabIndex = active ? 0 : -1;
     });
-    if (tab === 'attendance') refreshAttendanceSelect();
-    if (tab === 'stats') refreshStatsSelect();
-    if (tab === 'exams') refreshExamsSelect();
-    if (tab === 'points') refreshPointsSelect();
-    if (tab === 'seating') refreshSeatingSelect();
-    if (tab === 'teams') { renderPersonList(); renderTeamsClassList(); }
+    if (location.hash.slice(1) !== tab) history.replaceState(null, '', tab === 'classes' ? location.pathname + location.search : '#' + tab);
+    TAB_ENTER[tab]();
 }
+window.addEventListener('hashchange', () => switchTab(location.hash.slice(1)));
+
+// Nach grösseren Änderungen (Import, Backup, Rückgängig) alles neu zeichnen. Die übrigen
+// Reiter aktualisieren sich beim Betreten selbst.
+function refreshAllViews() {
+    if (activeClassId !== null && !classes.some(c => c.id === activeClassId)) activeClassId = null;
+    renderClassList(); renderClassDetail();
+    TAB_ENTER[currentTab]();
+}
+
+// Füllt eine Klassen-Auswahlliste und wählt selectedId, falls noch vorhanden. Gibt die gültige Auswahl zurück.
+function fillClassSelect(sel, list, selectedId, label = c => c.name) {
+    sel.replaceChildren(new Option('-- Klasse wählen --', ''), ...list.map(c => new Option(label(c), String(c.id))));
+    const valid = selectedId !== null && list.some(c => c.id === selectedId);
+    sel.value = valid ? String(selectedId) : '';
+    return valid ? selectedId : null;
+}
+const withCount = c => `${c.name} (${c.students.length} SuS)`;
+const findClass = id => classes.find(c => c.id === id) || null;
 
 // WOCHENPLAN (gemeinsame Helfer für Klassen-Formular & Detailansicht)
 function createScheduleRow(container, entry) {
@@ -374,11 +358,9 @@ function doCreateClass() {
     classes.push({ id: newId, name, students: [], formerStudents: [], schedule, collectsPoints, kind: ['sport', 'room'].includes(kind) ? kind : 'both' });
     if (collectsPoints) seedPointGoals(newId);
     saveClasses();
-    // Frischer Start nach dem Anlegen, damit alle Auswahllisten (Anwesenheit,
-    // Auswertung, Teams) die neue Klasse sicher kennen; die neue Klasse wird
-    // nach dem Reload wieder ausgewählt.
-    try { sessionStorage.setItem('tg2_selectClassAfterReload', String(newId)); } catch (e) {}
-    flushAndReload();
+    $newClassForm.classList.add('hidden');
+    selectClass(newId);
+    document.getElementById('student-name-input').focus();
 }
 
 function renderClassList() {
@@ -388,7 +370,14 @@ function renderClassList() {
         const noMsg = document.createElement('li');
         noMsg.id = 'no-classes-msg';
         noMsg.className = 'text-center text-gray-400 text-sm py-10';
-        noMsg.innerHTML = '<i class="fas fa-graduation-cap text-3xl mb-2 opacity-30 block" aria-hidden="true"></i>Noch keine Klassen angelegt.';
+        noMsg.innerHTML = '<i class="fas fa-graduation-cap text-3xl mb-2 opacity-30 block" aria-hidden="true"></i>Noch keine Klassen angelegt.'
+            + '<span class="block text-xs mt-1">Lege oben eine "Neue Klasse" an oder probiere die App mit Beispieldaten aus.</span>';
+        const demoBtn = document.createElement('button');
+        demoBtn.type = 'button';
+        demoBtn.className = 'mt-3 text-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-3 py-1.5 rounded-md inline-flex items-center gap-1.5';
+        demoBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> Beispielklasse anlegen';
+        demoBtn.addEventListener('click', createDemoClass);
+        noMsg.appendChild(demoBtn);
         list.appendChild(noMsg);
         return;
     }
@@ -431,6 +420,33 @@ function renderClassList() {
 
 function selectClass(id) { activeClassId = id; renderClassList(); renderClassDetail(); }
 
+// BEISPIELKLASSE — zum Ausprobieren aller Funktionen ohne eigene Daten (später einfach löschen).
+const DEMO_STUDENTS = [
+    ['Anna', 'w', true, 'Fussball, Tennis'], ['Ben', 'm', true, 'Fussball'], ['Chiara', 'w', false, 'Tanzen'],
+    ['David', 'm', false, ''], ['Elena', 'w', true, 'Unihockey'], ['Finn', 'm', true, 'Unihockey, Fussball'],
+    ['Gianna', 'w', false, 'Schwimmen'], ['Hugo', 'm', false, ''], ['Ida', 'w', true, 'Volleyball'],
+    ['Jonas', 'm', false, 'Basketball'], ['Lea', 'w', false, ''], ['Luca', 'm', true, 'Basketball, Tennis'],
+    ['Mia', 'w', true, 'Volleyball, Schwimmen'], ['Noah', 'm', false, 'Schwimmen'], ['Olivia', 'w', false, ''],
+    ['Samuel', 'm', true, 'Fussball'], ['Sofia', 'w', false, 'Tanzen'], ['Tim', 'm', false, 'Unihockey'],
+    ['Valentina', 'w', true, 'Tennis'], ['Yannick', 'm', false, '']
+];
+function createDemoClass() {
+    let name = 'Beispielklasse';
+    for (let i = 2; classes.some(c => c.name.toLowerCase() === name.toLowerCase()); i++) name = `Beispielklasse ${i}`;
+    const id = classIdCounter++;
+    classes.push({
+        id, name, formerStudents: [], collectsPoints: true, kind: 'both',
+        schedule: [{ weekday: 0, time: '08:00' }, { weekday: 3, time: '10:15' }],
+        students: DEMO_STUDENTS.map(([n, g, sporty, hobbies]) => ({
+            id: stuIdCounter++, name: n, gender: g === 'm' ? 'male' : 'female', sporty, classTag: '', hobbies: parseHobbies(hobbies)
+        }))
+    });
+    seedPointGoals(id);
+    saveClasses();
+    selectClass(id);
+    showToast(`"${name}" mit ${DEMO_STUDENTS.length} Schüler(innen) angelegt — probiere Anwesenheit, Teams und Sitzordnung aus.`, { duration: 8000 });
+}
+
 async function renameClass(id) {
     const cls = classes.find(c => c.id === id);
     if (!cls) return;
@@ -464,7 +480,7 @@ async function deleteClass(id) {
 function renderClassDetail() {
     const panel = document.getElementById('class-detail-panel');
     const noSel = document.getElementById('no-class-selected');
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) { panel.classList.add('hidden'); noSel.classList.remove('hidden'); return; }
     panel.classList.remove('hidden'); noSel.classList.add('hidden');
     document.getElementById('detail-class-name').textContent = cls.name;
@@ -480,7 +496,7 @@ function renderClassDetail() {
 // Unterrichtsart der Klasse: 'sport', 'room' (Klassenzimmer) oder 'both' (Standard, auch für ältere Daten)
 function classKind(cls) { return cls.kind === 'sport' || cls.kind === 'room' ? cls.kind : 'both'; }
 document.getElementById('detail-class-kind').addEventListener('change', function() {
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     cls.kind = ['sport', 'room'].includes(this.value) ? this.value : 'both';
     saveClasses();
@@ -496,7 +512,7 @@ function renderPointsToggle(cls) {
     btn.setAttribute('aria-pressed', String(on));
 }
 document.getElementById('toggle-points-btn').addEventListener('click', () => {
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     cls.collectsPoints = cls.collectsPoints !== true;
     if (cls.collectsPoints) seedPointGoals(cls.id);
@@ -523,7 +539,7 @@ function renderScheduleDisplayBadges(cls) {
 }
 
 document.getElementById('edit-schedule-btn').addEventListener('click', () => {
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     const editDiv = document.getElementById('detail-schedule-edit');
     const displayDiv = document.getElementById('detail-schedule-display');
@@ -540,7 +556,7 @@ document.getElementById('edit-schedule-btn').addEventListener('click', () => {
 });
 document.getElementById('detail-schedule-add-btn').addEventListener('click', () => createScheduleRow(document.getElementById('detail-schedule-rows')));
 document.getElementById('detail-schedule-save-btn').addEventListener('click', () => {
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     cls.schedule = readScheduleRows(document.getElementById('detail-schedule-rows'));
     saveClasses();
@@ -555,7 +571,7 @@ document.getElementById('add-student-form').addEventListener('submit', async e =
     const gender = document.querySelector('input[name="student-gender"]:checked').value;
     const sporty = document.getElementById('student-sporty-input').checked;
     if (!name || !activeClassId) return;
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     if (cls.students.find(s => s.name.toLowerCase() === name.toLowerCase())) {
         // Zwei Kinder mit gleichem Vornamen sind real möglich — nachfragen statt blockieren.
@@ -584,7 +600,7 @@ function studentHasExamResults(clsId, studentId) {
     return (exams[clsId] || []).some(exam => exam.results && exam.results[studentId] !== undefined);
 }
 function removeStudent(studentId) {
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     const student = cls.students.find(s => s.id === studentId);
     if (!student) return;
@@ -609,9 +625,9 @@ function renderStudentList(cls) {
     }
     cls.students.forEach(s => {
         const li = document.createElement('li');
-        li.className = 'flex items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm fade-in';
+        li.className = 'flex items-center justify-between bg-white p-2 rounded-lg border border-gray-100 shadow-sm';
         const left = document.createElement('div'); left.className = 'flex items-center gap-2 min-w-0';
-        const icon = document.createElement('span'); icon.innerHTML = GENDER_ICONS[sanitizeGender(s.gender)];
+        const icon = genderIconEl(s.gender);
         const nameSpan = document.createElement('span'); nameSpan.className = 'text-sm text-gray-700 truncate'; nameSpan.textContent = s.name;
         left.appendChild(icon); left.appendChild(nameSpan);
         if (s.classTag) {
@@ -673,7 +689,7 @@ function renderStudentList(cls) {
 }
 
 document.getElementById('sort-alpha-btn').addEventListener('click', () => {
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     cls.students.sort((a, b) => a.name.localeCompare(b.name, 'de'));
     saveClasses(); renderStudentList(cls);
@@ -681,7 +697,7 @@ document.getElementById('sort-alpha-btn').addEventListener('click', () => {
 
 document.getElementById('toggle-class-bulk-btn').addEventListener('click', () => document.getElementById('class-bulk-area').classList.toggle('hidden'));
 document.getElementById('class-bulk-import-btn').addEventListener('click', () => {
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = findClass(activeClassId);
     if (!cls) return;
     const text = document.getElementById('class-bulk-input').value.trim();
     if (!text) return;
@@ -719,7 +735,7 @@ function safeFilePart(str, maxLen = 40) {
 
 document.getElementById('export-classes-btn').addEventListener('click', async () => {
     if (classes.length === 0) { await uiAlert('Keine Klassen zum Exportieren vorhanden.'); return; }
-    const data = classes.map(c => ({ name: c.name, schedule: c.schedule || [], students: c.students.map(s => ({ name: s.name, gender: s.gender, sporty: s.sporty === true, classTag: s.classTag || '', hobbies: sanitizeHobbies(s.hobbies) })) }));
+    const data = classes.map(c => ({ name: c.name, kind: classKind(c), collectsPoints: c.collectsPoints === true, schedule: c.schedule || [], students: c.students.map(s => ({ name: s.name, gender: s.gender, sporty: s.sporty === true, classTag: s.classTag || '', hobbies: sanitizeHobbies(s.hobbies) })) }));
     downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `klassen-export-${todayStr()}.json`);
 });
 
@@ -738,39 +754,44 @@ $importFileInput.addEventListener('change', () => {
                 const data = JSON.parse(reader.result);
                 const list = Array.isArray(data) ? data : [data];
                 list.forEach(entry => {
-                    const name = (entry.name || '').trim();
+                    if (!entry || typeof entry !== 'object') return;
+                    const name = typeof entry.name === 'string' ? entry.name.trim() : '';
                     if (!name) return;
                     let cls = classes.find(c => c.name.toLowerCase() === name.toLowerCase());
                     if (!cls) {
                         const schedule = Array.isArray(entry.schedule)
                             ? entry.schedule.filter(e => e && Number.isInteger(e.weekday) && e.weekday >= 0 && e.weekday <= 6 && typeof e.time === 'string' && TIME_RE.test(e.time)).map(e => ({ weekday: e.weekday, time: e.time }))
                             : [];
-                        cls = { id: classIdCounter++, name, students: [], formerStudents: [], schedule }; classes.push(cls); imported++;
+                        cls = { id: classIdCounter++, name, students: [], formerStudents: [], schedule,
+                            collectsPoints: entry.collectsPoints === true, kind: classKind(entry) };
+                        classes.push(cls); imported++;
+                        if (cls.collectsPoints) seedPointGoals(cls.id);
                     }
-                    (entry.students || []).forEach(s => {
-                        const sName = (typeof s === 'string' ? s : s.name || '').trim();
+                    (Array.isArray(entry.students) ? entry.students : []).forEach(s => {
+                        const obj = s && typeof s === 'object' ? s : {};
+                        const sName = (typeof s === 'string' ? s : typeof obj.name === 'string' ? obj.name : '').trim();
                         if (!sName) return;
                         if (cls.students.find(st => st.name.toLowerCase() === sName.toLowerCase())) return;
-                        const gender = (typeof s === 'object' && (s.gender === 'female' || s.gender === 'male' || s.gender === 'diverse')) ? s.gender : 'female';
-                        const sporty = typeof s === 'object' && s.sporty === true;
-                        const classTag = (typeof s === 'object' && typeof s.classTag === 'string') ? s.classTag.slice(0, 20).trim() : '';
-                        const hobbies = typeof s === 'object' ? sanitizeHobbies(s.hobbies) : [];
-                        cls.students.push({ id: stuIdCounter++, name: sName, gender, sporty, classTag, hobbies });
+                        cls.students.push({
+                            id: stuIdCounter++, name: sName, gender: sanitizeGender(obj.gender || 'female'), sporty: obj.sporty === true,
+                            classTag: typeof obj.classTag === 'string' ? obj.classTag.slice(0, 20).trim() : '',
+                            hobbies: sanitizeHobbies(obj.hobbies)
+                        });
                         importedStudents++;
                     });
                 });
             } else {
                 parseCsvImport(reader.result).forEach(row => {
                     let cls = classes.find(c => c.name.toLowerCase() === row.className.toLowerCase());
-                    if (!cls) { cls = { id: classIdCounter++, name: row.className, students: [], formerStudents: [], schedule: [] }; classes.push(cls); imported++; }
+                    if (!cls) { cls = { id: classIdCounter++, name: row.className, students: [], formerStudents: [], schedule: [], collectsPoints: false, kind: 'both' }; classes.push(cls); imported++; }
                     if (cls.students.find(st => st.name.toLowerCase() === row.studentName.toLowerCase())) return;
                     cls.students.push({ id: stuIdCounter++, name: row.studentName, gender: row.gender, sporty: row.sporty, classTag: row.classTag || '', hobbies: row.hobbies || [] });
                     importedStudents++;
                 });
             }
             saveClasses();
-            await uiAlert(`Import abgeschlossen: ${imported} neue Klasse(n), ${importedStudents} Schüler(innen) hinzugefügt. Die Seite wird neu geladen.`, 'Import');
-            await flushAndReload();
+            refreshAllViews();
+            await uiAlert(`Import abgeschlossen: ${imported} neue Klasse(n), ${importedStudents} Schüler(innen) hinzugefügt.`, 'Import');
         } catch (err) {
             await uiAlert('Import fehlgeschlagen: Datei konnte nicht gelesen werden. Bitte ein gültiges JSON (Klassenexport) oder eine CSV mit "Klasse;Name;Geschlecht" verwenden.', 'Import');
         }
@@ -802,34 +823,37 @@ window.addEventListener('beforeunload', e => {
     if (attendanceDirty || examDirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
-function refreshAttendanceSelect() {
-    const sel = $attendanceSelect;
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">-- Klasse wählen --</option>';
-    classes.forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = String(cls.id); opt.textContent = `${cls.name} (${cls.students.length} SuS)`;
-        sel.appendChild(opt);
-    });
-    if (prev && classes.find(c => String(c.id) === prev)) sel.value = prev;
-    lastAttendanceSelectValue = sel.value;
+function showAttendanceContent(on) {
+    document.getElementById('attendance-empty').classList.toggle('hidden', on);
+    document.getElementById('attendance-content').classList.toggle('hidden', !on);
+}
+
+// Beim Betreten des Reiters: Auswahl aktualisieren. Ungespeicherte Eingaben bleiben erhalten,
+// werden aber an die aktuelle Schülerliste angepasst (neue Schüler(innen) = anwesend).
+function enterAttendanceTab() {
+    selAttendClassId = fillClassSelect($attendanceSelect, classes, selAttendClassId, withCount);
+    lastAttendanceSelectValue = $attendanceSelect.value;
     if (!$attendanceDate.value) $attendanceDate.value = todayStr();
     lastAttendanceDate = $attendanceDate.value;
+    const cls = findClass(selAttendClassId);
+    showAttendanceContent(!!cls);
+    if (!cls) { currentSessionRecords = {}; attendanceDirty = false; updateDirtyHint(); return; }
+    if (!attendanceDirty) { loadAttendanceSession(); return; }
+    const ids = new Set(cls.students.map(s => String(s.id)));
+    Object.keys(currentSessionRecords).forEach(id => { if (!ids.has(id)) delete currentSessionRecords[id]; });
+    cls.students.forEach(s => { if (!currentSessionRecords[s.id]) currentSessionRecords[s.id] = { status: 'present', reasonCategory: '', note: '' }; });
+    renderAttendanceGrid();
+    renderAttendanceSessionsList(cls);
 }
 
 $attendanceSelect.addEventListener('change', async function() {
     if (!(await confirmDiscardAttendance())) { this.value = lastAttendanceSelectValue; return; }
     lastAttendanceSelectValue = this.value;
     const id = parseInt(this.value, 10);
-    const emptyEl = document.getElementById('attendance-empty');
-    const contentEl = document.getElementById('attendance-content');
-    if (isNaN(id)) {
-        selAttendClassId = null; currentSessionRecords = {};
-        emptyEl.classList.remove('hidden'); contentEl.classList.add('hidden'); return;
-    }
-    selAttendClassId = id;
-    emptyEl.classList.add('hidden'); contentEl.classList.remove('hidden');
-    loadAttendanceSession();
+    selAttendClassId = isNaN(id) ? null : id;
+    if (selAttendClassId === null) currentSessionRecords = {};
+    showAttendanceContent(selAttendClassId !== null);
+    if (selAttendClassId !== null) loadAttendanceSession();
 });
 
 $attendanceDate.addEventListener('change', async function() {
@@ -839,7 +863,7 @@ $attendanceDate.addEventListener('change', async function() {
 });
 
 function loadAttendanceSession() {
-    const cls = classes.find(c => c.id === selAttendClassId);
+    const cls = findClass(selAttendClassId);
     if (!cls) return;
     const dateStr = $attendanceDate.value || todayStr();
     $attendanceDate.value = dateStr;
@@ -871,14 +895,10 @@ function renderScheduleHint(cls, dateStr) {
     hintEl.classList.remove('hidden');
 }
 
-document.getElementById('all-present-btn').addEventListener('click', () => {
-    Object.keys(currentSessionRecords).forEach(id => { currentSessionRecords[id].status = 'present'; });
+['present', 'absent'].forEach(status => document.getElementById(`all-${status}-btn`).addEventListener('click', () => {
+    Object.values(currentSessionRecords).forEach(rec => { rec.status = status; });
     markAttendanceDirty(); renderAttendanceGrid();
-});
-document.getElementById('all-absent-btn').addEventListener('click', () => {
-    Object.keys(currentSessionRecords).forEach(id => { currentSessionRecords[id].status = 'absent'; });
-    markAttendanceDirty(); renderAttendanceGrid();
-});
+}));
 
 // Klick wechselt den Status im Kreis: anwesend → abwesend → verletzt (anwesend,
 // macht nicht mit) → anwesend. Verletzte zählen als anwesend, werden aber nicht
@@ -886,9 +906,7 @@ document.getElementById('all-absent-btn').addEventListener('click', () => {
 const STATUS_LABELS = { present: 'anwesend', absent: 'abwesend', injured: 'anwesend, macht nicht mit (verletzt)' };
 const NEXT_STATUS = { present: 'absent', absent: 'injured', injured: 'present' };
 
-function renderAttendanceGrid() {
-    const cls = classes.find(c => c.id === selAttendClassId);
-    if (!cls) return;
+function updateAttendanceCounts(cls) {
     const recs = Object.values(currentSessionRecords);
     const participatingCount = recs.filter(r => r.status === 'present').length;
     const injuredCount = recs.filter(r => r.status === 'injured').length;
@@ -896,76 +914,85 @@ function renderAttendanceGrid() {
     document.getElementById('present-count').textContent = participatingCount + injuredCount;
     document.getElementById('injured-count-note').textContent = injuredCount > 0 ? `davon ${injuredCount} verletzt (machen nicht mit)` : '';
     document.getElementById('load-to-teams-label').textContent = `Teams erstellen mit ${participatingCount} Schüler${participatingCount === 1 ? '' : 'n'}`;
+}
+
+function renderAttendanceGrid() {
+    const cls = findClass(selAttendClassId);
+    if (!cls) return;
+    updateAttendanceCounts(cls);
     const grid = document.getElementById('attendance-grid');
-    grid.innerHTML = '';
     if (cls.students.length === 0) { grid.innerHTML = '<p class="text-sm text-gray-400 col-span-full text-center py-6">Diese Klasse hat noch keine Schüler.</p>'; return; }
-    cls.students.forEach(s => {
-        const rec = currentSessionRecords[s.id];
-        const status = sanitizeStatus(rec.status);
-        const card = document.createElement('div');
-        const cardColor = status === 'present' ? 'bg-green-50 border-green-400 text-green-900'
-            : status === 'injured' ? 'bg-orange-50 border-orange-400 text-orange-900'
-            : 'bg-red-50 border-red-300 text-red-900';
-        card.className = `attendance-card p-3 rounded-xl border-2 select-none ${cardColor}`;
-        const topRow = document.createElement('button');
-        topRow.type = 'button';
-        topRow.className = 'flex items-center gap-3 cursor-pointer w-full text-left';
-        topRow.setAttribute('aria-label', `${s.name}: ${STATUS_LABELS[status]} — klicken zum Umschalten (anwesend → abwesend → verletzt)`);
-        topRow.addEventListener('click', () => { rec.status = NEXT_STATUS[status]; markAttendanceDirty(); renderAttendanceGrid(); });
-        const checkbox = document.createElement('div');
-        const boxColor = status === 'present' ? 'bg-green-500 border-green-500'
-            : status === 'injured' ? 'bg-orange-400 border-orange-400'
-            : 'bg-red-400 border-red-400';
-        checkbox.className = `w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${boxColor}`;
-        checkbox.innerHTML = status === 'present' ? '<i class="fas fa-check text-white text-xs" aria-hidden="true"></i>'
-            : status === 'injured' ? '<i class="fas fa-user-injured text-white text-xs" aria-hidden="true"></i>'
-            : '<i class="fas fa-times text-white text-xs" aria-hidden="true"></i>';
-        const iconSpan = document.createElement('span'); iconSpan.innerHTML = GENDER_ICONS[sanitizeGender(s.gender)];
-        const nameSpan = document.createElement('span'); nameSpan.className = 'font-medium text-sm flex-1 truncate'; nameSpan.textContent = s.name;
-        topRow.appendChild(checkbox); topRow.appendChild(iconSpan); topRow.appendChild(nameSpan);
-        if (status === 'injured') {
-            const injuredTag = document.createElement('span');
-            injuredTag.className = 'text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full flex-shrink-0';
-            injuredTag.textContent = 'macht nicht mit';
-            topRow.appendChild(injuredTag);
-        }
-        card.appendChild(topRow);
-        if (status === 'absent') {
-            const reasonRow = document.createElement('div');
-            reasonRow.className = 'flex flex-col sm:flex-row gap-1.5 mt-2 pt-2 border-t border-red-200';
-            const sel = document.createElement('select');
-            sel.className = 'text-xs border border-red-200 rounded-md p-1.5 bg-white focus:outline-none focus:border-red-400';
-            sel.setAttribute('aria-label', `Abwesenheitsgrund für ${s.name}`);
-            sel.innerHTML = '<option value="">Grund wählen…</option>' + REASON_CATEGORIES.map(r => `<option value="${r}">${r}</option>`).join('');
-            sel.value = rec.reasonCategory || '';
-            sel.addEventListener('click', e => e.stopPropagation());
-            sel.addEventListener('change', e => { rec.reasonCategory = e.target.value; markAttendanceDirty(); });
-            const note = document.createElement('input');
-            note.type = 'text'; note.placeholder = 'Notiz (optional)'; note.value = rec.note || '';
-            note.setAttribute('aria-label', `Notiz zur Abwesenheit von ${s.name}`);
-            note.className = 'text-xs border border-red-200 rounded-md p-1.5 flex-1 focus:outline-none focus:border-red-400';
-            note.addEventListener('click', e => e.stopPropagation());
-            note.addEventListener('input', e => { rec.note = e.target.value; markAttendanceDirty(); });
-            reasonRow.appendChild(sel); reasonRow.appendChild(note);
-            card.appendChild(reasonRow);
-        } else if (status === 'injured') {
-            const noteRow = document.createElement('div');
-            noteRow.className = 'mt-2 pt-2 border-t border-orange-200';
-            const note = document.createElement('input');
-            note.type = 'text'; note.placeholder = 'Notiz (optional, z.B. Fuss verstaucht)'; note.value = rec.note || '';
-            note.setAttribute('aria-label', `Notiz zur Verletzung von ${s.name}`);
-            note.className = 'text-xs border border-orange-200 rounded-md p-1.5 w-full focus:outline-none focus:border-orange-400';
-            note.addEventListener('click', e => e.stopPropagation());
-            note.addEventListener('input', e => { rec.note = e.target.value; markAttendanceDirty(); });
-            noteRow.appendChild(note);
-            card.appendChild(noteRow);
-        }
-        grid.appendChild(card);
+    const frag = document.createDocumentFragment();
+    cls.students.forEach(s => frag.appendChild(buildAttendanceCard(cls, s)));
+    grid.replaceChildren(frag);
+}
+
+const CARD_STYLE = {
+    present: { card: 'bg-green-50 border-green-400 text-green-900', box: 'bg-green-500 border-green-500', icon: 'fa-check' },
+    absent:  { card: 'bg-red-50 border-red-300 text-red-900', box: 'bg-red-400 border-red-400', icon: 'fa-times' },
+    injured: { card: 'bg-orange-50 border-orange-400 text-orange-900', box: 'bg-orange-400 border-orange-400', icon: 'fa-user-injured' }
+};
+function attendanceNoteInput(rec, label, placeholder, colorCls) {
+    const note = document.createElement('input');
+    note.type = 'text'; note.placeholder = placeholder; note.value = rec.note || '';
+    note.setAttribute('aria-label', label);
+    note.className = `text-xs border ${colorCls} rounded-md p-1.5 flex-1 w-full focus:outline-none`;
+    note.addEventListener('input', () => { rec.note = note.value; markAttendanceDirty(); });
+    return note;
+}
+// Eine Karte pro Person. Beim Umschalten wird nur diese Karte ersetzt (schnell, Fokus bleibt).
+function buildAttendanceCard(cls, s) {
+    const rec = currentSessionRecords[s.id];
+    const status = sanitizeStatus(rec.status);
+    const st = CARD_STYLE[status];
+    const card = document.createElement('div');
+    card.className = `attendance-card p-3 rounded-xl border-2 select-none ${st.card}`;
+    const topRow = document.createElement('button');
+    topRow.type = 'button';
+    topRow.className = 'flex items-center gap-3 cursor-pointer w-full text-left';
+    topRow.setAttribute('aria-label', `${s.name}: ${STATUS_LABELS[status]} — klicken zum Umschalten (anwesend → abwesend → verletzt)`);
+    topRow.addEventListener('click', () => {
+        rec.status = NEXT_STATUS[status];
+        markAttendanceDirty();
+        const next = buildAttendanceCard(cls, s);
+        card.replaceWith(next);
+        next.querySelector('button').focus();
+        updateAttendanceCounts(cls);
     });
+    const checkbox = document.createElement('div');
+    checkbox.className = `w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${st.box}`;
+    checkbox.innerHTML = `<i class="fas ${st.icon} text-white text-xs" aria-hidden="true"></i>`;
+    const nameSpan = document.createElement('span'); nameSpan.className = 'font-medium text-sm flex-1 truncate'; nameSpan.textContent = s.name;
+    topRow.append(checkbox, genderIconEl(s.gender), nameSpan);
+    if (status === 'injured') {
+        const injuredTag = document.createElement('span');
+        injuredTag.className = 'text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full flex-shrink-0';
+        injuredTag.textContent = 'macht nicht mit';
+        topRow.appendChild(injuredTag);
+    }
+    card.appendChild(topRow);
+    if (status === 'absent') {
+        const reasonRow = document.createElement('div');
+        reasonRow.className = 'flex flex-col sm:flex-row gap-1.5 mt-2 pt-2 border-t border-red-200';
+        const sel = document.createElement('select');
+        sel.className = 'text-xs border border-red-200 rounded-md p-1.5 bg-white focus:outline-none';
+        sel.setAttribute('aria-label', `Abwesenheitsgrund für ${s.name}`);
+        sel.append(new Option('Grund wählen…', ''), ...REASON_CATEGORIES.map(r => new Option(r, r)));
+        sel.value = rec.reasonCategory || '';
+        sel.addEventListener('change', () => { rec.reasonCategory = sel.value; markAttendanceDirty(); });
+        reasonRow.append(sel, attendanceNoteInput(rec, `Notiz zur Abwesenheit von ${s.name}`, 'Notiz (optional)', 'border-red-200'));
+        card.appendChild(reasonRow);
+    } else if (status === 'injured') {
+        const noteRow = document.createElement('div');
+        noteRow.className = 'mt-2 pt-2 border-t border-orange-200';
+        noteRow.appendChild(attendanceNoteInput(rec, `Notiz zur Verletzung von ${s.name}`, 'Notiz (optional, z.B. Fuss verstaucht)', 'border-orange-200'));
+        card.appendChild(noteRow);
+    }
+    return card;
 }
 
 document.getElementById('save-attendance-btn').addEventListener('click', () => {
-    const cls = classes.find(c => c.id === selAttendClassId);
+    const cls = findClass(selAttendClassId);
     if (!cls) return;
     const dateStr = $attendanceDate.value || todayStr();
     if (!attendanceData[cls.id]) attendanceData[cls.id] = {};
@@ -1040,7 +1067,7 @@ $attendanceImportInput.addEventListener('change', () => {
     const reader = new FileReader();
     reader.onload = async () => {
         $attendanceImportInput.value = '';
-        const cls = classes.find(c => c.id === selAttendClassId);
+        const cls = findClass(selAttendClassId);
         if (!cls) return;
         const { rows, invalid } = parseAttendanceCsv(String(reader.result));
         if (rows.length === 0) {
@@ -1104,7 +1131,7 @@ async function loadPersonsIntoTeams(list, bannerText) {
 }
 
 document.getElementById('load-to-teams-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selAttendClassId);
+    const cls = findClass(selAttendClassId);
     if (!cls) return;
     // Nur aktiv Mitmachende übernehmen — Verletzte sind zwar anwesend, spielen aber nicht mit.
     const present = cls.students.filter(s => currentSessionRecords[s.id] && currentSessionRecords[s.id].status === 'present');
@@ -1115,16 +1142,10 @@ document.getElementById('load-to-teams-btn').addEventListener('click', async () 
 });
 
 // TAB: AUSWERTUNG
-function refreshStatsSelect() {
+function enterStatsTab() {
     const sel = document.getElementById('stats-class-select');
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">-- Klasse wählen --</option>';
-    classes.forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = String(cls.id); opt.textContent = cls.name;
-        sel.appendChild(opt);
-    });
-    if (prev && classes.find(c => String(c.id) === prev)) { sel.value = prev; renderStats(); }
+    fillClassSelect(sel, classes, parseInt(sel.value, 10));
+    renderStats();
 }
 
 document.getElementById('stats-class-select').addEventListener('change', renderStats);
@@ -1249,19 +1270,7 @@ function renderStats() {
     statsRows.forEach(row => {
         const tr = document.createElement('tr');
         tr.className = 'border-t border-gray-100';
-        const nameTd = document.createElement('td');
-        nameTd.className = 'px-3 py-2 flex items-center gap-2';
-        nameTd.appendChild(genderIconEl(row.student.gender));
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'font-medium';
-        nameSpan.textContent = row.student.name;
-        nameTd.appendChild(nameSpan);
-        if (row.former) {
-            const badge = document.createElement('span');
-            badge.className = 'text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full';
-            badge.textContent = 'ehemalig';
-            nameTd.appendChild(badge);
-        }
+        const nameTd = nameCell(row.student, row.former, 'px-3 py-2');
         const tagTd = document.createElement('td');
         tagTd.className = 'px-3 py-2 text-xs text-sky-700';
         tagTd.textContent = row.student.classTag || '–';
@@ -1357,23 +1366,20 @@ function exportStatsCsv(cls, statsRows, sessionCount, semesterFilter, tagFilter)
 // TAB: PRÜFUNGEN / LERNZIELKONTROLLEN
 const $examsSelect = document.getElementById('exams-class-select');
 
-function refreshExamsSelect() {
-    const prev = $examsSelect.value;
-    $examsSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
-    classes.forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = String(cls.id); opt.textContent = cls.name;
-        $examsSelect.appendChild(opt);
-    });
-    if (prev && classes.find(c => String(c.id) === prev)) { $examsSelect.value = prev; }
-    // Wurde die gewählte Klasse gelöscht, die Ansicht zurücksetzen statt veraltete Inhalte zu zeigen.
-    if (selExamClassId !== null && !classes.find(c => c.id === selExamClassId)) {
-        selExamClassId = null; selExamId = null; examDirty = false; updateExamDirtyHint();
-        document.getElementById('exams-empty').classList.remove('hidden');
-        document.getElementById('exams-content').classList.add('hidden');
-        document.getElementById('create-exam-btn').classList.add('hidden');
-        document.getElementById('new-exam-form').classList.add('hidden');
-    }
+function showExamsContent(on) {
+    document.getElementById('exams-empty').classList.toggle('hidden', on);
+    document.getElementById('exams-content').classList.toggle('hidden', !on);
+    document.getElementById('create-exam-btn').classList.toggle('hidden', !on);
+    if (!on) document.getElementById('new-exam-form').classList.add('hidden');
+}
+// Beim Betreten: Auswahl prüfen (Klasse gelöscht?) und Tabelle mit aktueller Schülerliste zeichnen.
+function enterExamsTab() {
+    selExamClassId = fillClassSelect($examsSelect, classes, selExamClassId);
+    showExamsContent(selExamClassId !== null);
+    if (selExamClassId === null) { selExamId = null; examDirty = false; updateExamDirtyHint(); return; }
+    if (!getSelectedExam()) { selExamId = null; examDirty = false; updateExamDirtyHint(); }
+    renderExamList();
+    if (!examDirty) renderExamDetail();
 }
 
 async function confirmDiscardExam() {
@@ -1389,17 +1395,9 @@ function updateExamDirtyHint() {
 $examsSelect.addEventListener('change', async function() {
     if (!(await confirmDiscardExam())) { this.value = selExamClassId === null ? '' : String(selExamClassId); return; }
     const id = parseInt(this.value, 10);
-    const emptyEl = document.getElementById('exams-empty');
-    const contentEl = document.getElementById('exams-content');
-    const createBtn = document.getElementById('create-exam-btn');
-    if (isNaN(id)) {
-        selExamClassId = null; selExamId = null;
-        emptyEl.classList.remove('hidden'); contentEl.classList.add('hidden'); createBtn.classList.add('hidden');
-        return;
-    }
-    selExamClassId = id; selExamId = null;
-    emptyEl.classList.add('hidden'); contentEl.classList.remove('hidden'); createBtn.classList.remove('hidden');
-    document.getElementById('new-exam-form').classList.add('hidden');
+    selExamClassId = isNaN(id) ? null : id; selExamId = null;
+    showExamsContent(selExamClassId !== null);
+    if (selExamClassId === null) return;
     renderExamList();
     renderExamDetail();
 });
@@ -1420,7 +1418,7 @@ document.querySelectorAll('input[name="exam-mode"]').forEach(radio => radio.addE
 }));
 
 document.getElementById('save-exam-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selExamClassId);
+    const cls = findClass(selExamClassId);
     if (!cls) return;
     const errEl = document.getElementById('exam-form-error');
     const title = document.getElementById('exam-title-input').value.trim();
@@ -1442,7 +1440,7 @@ document.getElementById('save-exam-btn').addEventListener('click', async () => {
 });
 
 function renderExamList() {
-    const cls = classes.find(c => c.id === selExamClassId);
+    const cls = findClass(selExamClassId);
     const list = document.getElementById('exam-list');
     list.innerHTML = '';
     const examList = (cls && exams[cls.id] ? exams[cls.id] : []).slice().sort((a, b) => b.date.localeCompare(a.date));
@@ -1501,7 +1499,7 @@ function gradeColorClass(grade) {
 }
 
 function renderExamDetail() {
-    const cls = classes.find(c => c.id === selExamClassId);
+    const cls = findClass(selExamClassId);
     const exam = getSelectedExam();
     const emptyEl = document.getElementById('exam-detail-empty');
     const detailEl = document.getElementById('exam-detail');
@@ -1518,18 +1516,7 @@ function renderExamDetail() {
     examRowStudents(cls, exam).forEach(s => {
         const tr = document.createElement('tr');
         tr.className = 'border-t border-gray-100';
-        const nameTd = document.createElement('td');
-        nameTd.className = 'px-3 py-1.5 flex items-center gap-2';
-        nameTd.appendChild(genderIconEl(s.gender));
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = s.name;
-        nameTd.appendChild(nameSpan);
-        if (s.former) {
-            const badge = document.createElement('span');
-            badge.className = 'text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full';
-            badge.textContent = 'ehemalig';
-            nameTd.appendChild(badge);
-        }
+        const nameTd = nameCell(s, s.former, 'px-3 py-1.5');
         const tagTd = document.createElement('td');
         tagTd.className = 'px-3 py-1.5 text-xs text-sky-700';
         tagTd.textContent = s.classTag || '–';
@@ -1563,7 +1550,7 @@ function renderExamDetail() {
 }
 
 document.getElementById('save-exam-results-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selExamClassId);
+    const cls = findClass(selExamClassId);
     const exam = getSelectedExam();
     if (!cls || !exam) return;
     const invalid = [];
@@ -1623,7 +1610,7 @@ function renderExamStats(cls, exam) {
 }
 
 document.getElementById('delete-exam-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selExamClassId);
+    const cls = findClass(selExamClassId);
     const exam = getSelectedExam();
     if (!cls || !exam) return;
     const ok = await uiConfirm(`Prüfung "${exam.title}" vom ${formatDateDisplay(exam.date)} wirklich löschen?`, { okLabel: 'Löschen', danger: true });
@@ -1639,7 +1626,7 @@ document.getElementById('delete-exam-btn').addEventListener('click', async () =>
 // Punkte-Modus die Punktzahl, im Noten-Modus die eingegebene Note. Mischt die
 // Gruppe mehrere Klassenkürzel, wird pro Kürzel eine eigene Datei erzeugt.
 document.getElementById('export-exam-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selExamClassId);
+    const cls = findClass(selExamClassId);
     const exam = getSelectedExam();
     if (!cls || !exam) return;
     const rows = examRowStudents(cls, exam).filter(s => exam.results[s.id] !== undefined);
@@ -1676,39 +1663,23 @@ function getPointsData(classId) {
     return pointsData[classId];
 }
 
-function refreshPointsSelect() {
-    const prev = $pointsSelect.value;
-    $pointsSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
-    classes.filter(c => c.collectsPoints === true).forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = String(cls.id); opt.textContent = cls.name;
-        $pointsSelect.appendChild(opt);
-    });
-    if (prev && [...$pointsSelect.options].some(o => o.value === prev)) $pointsSelect.value = prev;
-    else if (selPointsClassId !== null && ![...$pointsSelect.options].some(o => o.value === String(selPointsClassId))) {
-        selPointsClassId = null;
-        document.getElementById('points-empty').classList.remove('hidden');
-        document.getElementById('points-content').classList.add('hidden');
-    }
-}
-
-$pointsSelect.addEventListener('change', function() {
-    const id = parseInt(this.value, 10);
-    const emptyEl = document.getElementById('points-empty');
-    const contentEl = document.getElementById('points-content');
-    if (isNaN(id)) {
-        selPointsClassId = null;
-        emptyEl.classList.remove('hidden'); contentEl.classList.add('hidden');
-        return;
-    }
-    selPointsClassId = id;
-    emptyEl.classList.add('hidden'); contentEl.classList.remove('hidden');
+function enterPointsTab() {
+    selPointsClassId = fillClassSelect($pointsSelect, classes.filter(c => c.collectsPoints === true), selPointsClassId);
+    const on = selPointsClassId !== null;
+    document.getElementById('points-empty').classList.toggle('hidden', on);
+    document.getElementById('points-content').classList.toggle('hidden', !on);
+    if (!on) return;
     if (!$pointsDate.value) $pointsDate.value = todayStr();
     renderPointsTab();
+}
+$pointsSelect.addEventListener('change', function() {
+    const id = parseInt(this.value, 10);
+    selPointsClassId = isNaN(id) ? null : id;
+    enterPointsTab();
 });
 
 function renderPointsTab() {
-    const cls = classes.find(c => c.id === selPointsClassId);
+    const cls = findClass(selPointsClassId);
     if (!cls) return;
     const pd = getPointsData(cls.id);
     const total = computePointsTotal(pd.entries);
@@ -1761,7 +1732,7 @@ function updateLektionSum(pd) {
 }
 
 document.getElementById('points-save-lektion-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selPointsClassId);
+    const cls = findClass(selPointsClassId);
     if (!cls) return;
     const pd = getPointsData(cls.id);
     const date = $pointsDate.value || todayStr();
@@ -1781,7 +1752,7 @@ document.getElementById('points-save-lektion-btn').addEventListener('click', asy
 });
 
 document.getElementById('points-reset-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selPointsClassId);
+    const cls = findClass(selPointsClassId);
     if (!cls) return;
     const pd = getPointsData(cls.id);
     const total = computePointsTotal(pd.entries);
@@ -1795,7 +1766,7 @@ document.getElementById('points-reset-btn').addEventListener('click', async () =
 // Pauschale Anpassung: Punkte direkt hinzufügen oder abziehen — z.B. Startpunktestand
 // beim Umstieg vom alten Excel-Tracker. Der Stand fällt dabei nie unter 0.
 document.getElementById('points-adjust-btn').addEventListener('click', async () => {
-    const cls = classes.find(c => c.id === selPointsClassId);
+    const cls = findClass(selPointsClassId);
     if (!cls) return;
     const pd = getPointsData(cls.id);
     const raw = await uiPrompt('Punkte hinzufügen oder abziehen (z.B. 30 für Startpunktestand, -5 für Abzug):', {
@@ -1942,7 +1913,7 @@ function renderPointsGoalsEditor(pd) {
 }
 
 document.getElementById('points-add-goal-btn').addEventListener('click', () => {
-    const cls = classes.find(c => c.id === selPointsClassId);
+    const cls = findClass(selPointsClassId);
     if (!cls) return;
     const pd = getPointsData(cls.id);
     const input = document.getElementById('points-new-goal-input');
@@ -2043,21 +2014,11 @@ function seatingPreset(kind, cols, rows) {
     }
     return desks;
 }
-function currentSeatingClass() { return classes.find(c => c.id === selSeatingClassId) || null; }
+function currentSeatingClass() { return findClass(selSeatingClassId); }
 
 function refreshSeatingSelect() {
-    const prev = $seatingSelect.value;
-    $seatingSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
     // Sitzordnungen gibt es nur für Klassen mit Unterricht im Klassenzimmer
-    classes.filter(c => classKind(c) !== 'sport').forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = String(cls.id); opt.textContent = `${cls.name} (${cls.students.length} SuS)`;
-        $seatingSelect.appendChild(opt);
-    });
-    if (prev && classes.find(c => String(c.id) === prev && classKind(c) !== 'sport')) $seatingSelect.value = prev;
-    else if (selSeatingClassId !== null && classes.find(c => c.id === selSeatingClassId && classKind(c) !== 'sport')) $seatingSelect.value = String(selSeatingClassId);
-    const id = parseInt($seatingSelect.value, 10);
-    selSeatingClassId = isNaN(id) ? null : id;
+    selSeatingClassId = fillClassSelect($seatingSelect, classes.filter(c => classKind(c) !== 'sport'), selSeatingClassId, withCount);
     renderSeating();
 }
 $seatingSelect.addEventListener('change', () => {
@@ -2154,52 +2115,35 @@ function renderSeating() {
         chips.appendChild(c);
     });
     document.getElementById('seating-unseated').replaceChildren(chips);
-    renderSeatingSaved(sd);
-    renderSeatingLayouts(sd);
+    renderSeatingList('saved', sd.saved);
+    renderSeatingList('layout', sd.layouts);
 }
 
-function renderSeatingLayouts(sd) {
-    const list = document.getElementById('seating-layout-list');
+// Listen gespeicherter Sitzordnungen ('saved', mit Personen) und Tischanordnungen ('layout', nur Tische)
+const SEAT_LISTS = {
+    saved:  { el: 'seating-saved-list',  empty: 'Noch nichts gespeichert.', meta: p => `${p.desks.filter(d => d.s !== null).length} Plätze` },
+    layout: { el: 'seating-layout-list', empty: 'Noch keine Tischanordnung gespeichert.', meta: p => `${p.desks.length} Tische` }
+};
+function renderSeatingList(kind, plans) {
+    const cfg = SEAT_LISTS[kind];
     const frag = document.createDocumentFragment();
-    if (sd.layouts.length === 0) {
-        const li = document.createElement('li'); li.className = 'text-xs text-gray-400'; li.textContent = 'Noch keine Tischanordnung gespeichert.'; frag.appendChild(li);
+    if (plans.length === 0) {
+        const li = document.createElement('li'); li.className = 'text-xs text-gray-400'; li.textContent = cfg.empty; frag.appendChild(li);
     }
-    sd.layouts.forEach(lp => {
+    plans.forEach(p => {
         const li = document.createElement('li');
         li.className = 'flex items-center justify-between gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 shadow-sm';
-        const name = document.createElement('span'); name.className = 'text-sm font-medium truncate flex-1'; name.textContent = lp.name;
-        const meta = document.createElement('span'); meta.className = 'text-xs text-gray-400 flex-shrink-0'; meta.textContent = `${lp.desks.length} Tische`;
-        const load = document.createElement('button'); load.type = 'button'; load.dataset.loadLayout = lp.id;
+        const name = document.createElement('span'); name.className = 'text-sm font-medium truncate flex-1'; name.textContent = p.name;
+        const meta = document.createElement('span'); meta.className = 'text-xs text-gray-400 flex-shrink-0'; meta.textContent = cfg.meta(p);
+        const load = document.createElement('button'); load.type = 'button'; load.dataset.load = p.id;
         load.className = 'text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-medium flex-shrink-0'; load.textContent = 'Laden';
-        const del = document.createElement('button'); del.type = 'button'; del.dataset.delLayout = lp.id;
+        const del = document.createElement('button'); del.type = 'button'; del.dataset.del = p.id;
         del.className = 'text-gray-300 hover:text-red-500 text-xs p-1 flex-shrink-0';
-        del.innerHTML = '<i class="fas fa-trash-alt" aria-hidden="true"></i>'; del.setAttribute('aria-label', `"${lp.name}" löschen`);
-        li.appendChild(name); li.appendChild(meta); li.appendChild(load); li.appendChild(del);
+        del.innerHTML = '<i class="fas fa-trash-alt" aria-hidden="true"></i>'; del.setAttribute('aria-label', `"${p.name}" löschen`);
+        li.append(name, meta, load, del);
         frag.appendChild(li);
     });
-    list.replaceChildren(frag);
-}
-
-function renderSeatingSaved(sd) {
-    const list = document.getElementById('seating-saved-list');
-    const frag = document.createDocumentFragment();
-    if (sd.saved.length === 0) {
-        const li = document.createElement('li'); li.className = 'text-xs text-gray-400'; li.textContent = 'Noch nichts gespeichert.'; frag.appendChild(li);
-    }
-    sd.saved.forEach(sp => {
-        const li = document.createElement('li');
-        li.className = 'flex items-center justify-between gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 shadow-sm';
-        const name = document.createElement('span'); name.className = 'text-sm font-medium truncate flex-1'; name.textContent = sp.name;
-        const meta = document.createElement('span'); meta.className = 'text-xs text-gray-400 flex-shrink-0'; meta.textContent = `${sp.desks.filter(d => d.s !== null).length} Plätze`;
-        const load = document.createElement('button'); load.type = 'button'; load.dataset.load = sp.id;
-        load.className = 'text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-medium flex-shrink-0'; load.textContent = 'Laden';
-        const del = document.createElement('button'); del.type = 'button'; del.dataset.del = sp.id;
-        del.className = 'text-gray-300 hover:text-red-500 text-xs p-1 flex-shrink-0';
-        del.innerHTML = '<i class="fas fa-trash-alt" aria-hidden="true"></i>'; del.setAttribute('aria-label', `"${sp.name}" löschen`);
-        li.appendChild(name); li.appendChild(meta); li.appendChild(load); li.appendChild(del);
-        frag.appendChild(li);
-    });
-    list.replaceChildren(frag);
+    document.getElementById(cfg.el).replaceChildren(frag);
 }
 
 // Ein einziger Listener für das Raster (Event-Delegation statt hunderter Handler)
@@ -2441,81 +2385,52 @@ document.getElementById('seating-pdf-btn').addEventListener('click', () => expor
 
 document.getElementById('seating-print-btn').addEventListener('click', () => { seatSel = null; renderSeating(); window.print(); });
 
-document.getElementById('seating-save-form').addEventListener('submit', e => {
-    e.preventDefault();
+// Aktuellen Plan unter einem Namen ablegen; gleicher Name = überschreiben.
+// Tischanordnungen ('layout') speichern nur die Tische, Sitzordnungen ('saved') auch die Personen.
+function saveSeatingAs(kind, inputId) {
     const cls = currentSeatingClass();
-    const input = document.getElementById('seating-save-name');
+    const input = document.getElementById(inputId);
     const name = input.value.trim().slice(0, 60);
     if (!cls || !name) return;
     const sd = seatingState(cls.id);
+    const list = kind === 'layout' ? sd.layouts : sd.saved;
+    const label = kind === 'layout' ? 'Tischanordnung ' : '';
     const copy = structuredClone(sd.current);
-    const existing = sd.saved.find(x => x.name.toLowerCase() === name.toLowerCase());
-    if (existing) { Object.assign(existing, copy); showToast(`"${existing.name}" aktualisiert.`); }
-    else { sd.saved.push({ id: seatingIdCounter++, name, ...copy }); showToast(`Als "${name}" gespeichert.`); }
+    if (kind === 'layout') copy.desks = copy.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false }));
+    const existing = list.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (existing) { Object.assign(existing, copy); showToast(`${label}"${existing.name}" aktualisiert.`); }
+    else { list.push({ id: seatingIdCounter++, name, ...copy }); showToast(`${label}"${name}" gespeichert.`); }
     input.value = '';
     saveSeating(); renderSeating();
-});
-document.getElementById('seating-layout-form').addEventListener('submit', e => {
-    e.preventDefault();
-    const cls = currentSeatingClass();
-    const input = document.getElementById('seating-layout-name');
-    const name = input.value.trim().slice(0, 60);
-    if (!cls || !name) return;
-    const sd = seatingState(cls.id);
-    const copy = structuredClone(sd.current);
-    copy.desks = copy.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false }));
-    const existing = sd.layouts.find(x => x.name.toLowerCase() === name.toLowerCase());
-    if (existing) { Object.assign(existing, copy); showToast(`Tischanordnung "${existing.name}" aktualisiert.`); }
-    else { sd.layouts.push({ id: seatingIdCounter++, name, ...copy }); showToast(`Tischanordnung als "${name}" gespeichert.`); }
-    input.value = '';
-    saveSeating(); renderSeating();
-});
-document.getElementById('seating-layout-list').addEventListener('click', e => {
-    const cls = currentSeatingClass();
-    if (!cls) return;
-    const sd = seatingState(cls.id);
-    const load = e.target.closest('[data-load-layout]');
-    const del = e.target.closest('[data-del-layout]');
-    if (load) {
-        const lp = sd.layouts.find(x => x.id === parseInt(load.dataset.loadLayout, 10));
-        if (!lp) return;
-        setSeatMsg('');
-        withUndo(`Tischanordnung "${lp.name}" geladen.`, () => {
-            // Nur die Tische werden übernommen; die Personen müssen neu gesetzt werden
-            sd.current = { cols: lp.cols, rows: lp.rows, desks: lp.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false })) };
-            seatSel = null; saveSeating(); renderSeating();
-        });
-    } else if (del) {
-        const lp = sd.layouts.find(x => x.id === parseInt(del.dataset.delLayout, 10));
-        if (!lp) return;
-        withUndo(`Tischanordnung "${lp.name}" gelöscht.`, () => {
-            sd.layouts = sd.layouts.filter(x => x !== lp); saveSeating(); renderSeating();
-        });
-    }
-});
+}
+document.getElementById('seating-save-form').addEventListener('submit', e => { e.preventDefault(); saveSeatingAs('saved', 'seating-save-name'); });
+document.getElementById('seating-layout-form').addEventListener('submit', e => { e.preventDefault(); saveSeatingAs('layout', 'seating-layout-name'); });
 
-document.getElementById('seating-saved-list').addEventListener('click', e => {
+['saved', 'layout'].forEach(kind => document.getElementById(SEAT_LISTS[kind].el).addEventListener('click', e => {
     const cls = currentSeatingClass();
     if (!cls) return;
     const sd = seatingState(cls.id);
-    const load = e.target.closest('[data-load]');
-    const del = e.target.closest('[data-del]');
-    if (load) {
-        const sp = sd.saved.find(x => x.id === parseInt(load.dataset.load, 10));
-        if (!sp) return;
+    const key = kind === 'layout' ? 'layouts' : 'saved';
+    const btn = e.target.closest('[data-load], [data-del]');
+    if (!btn) return;
+    const p = sd[key].find(x => x.id === parseInt(btn.dataset.load || btn.dataset.del, 10));
+    if (!p) return;
+    const label = kind === 'layout' ? `Tischanordnung "${p.name}"` : `"${p.name}"`;
+    if (btn.dataset.load) {
         setSeatMsg('');
-        withUndo(`"${sp.name}" geladen.`, () => {
-            sd.current = cleanSeatingPlan(structuredClone(sp), new Set(cls.students.map(s => s.id))) || sd.current;
+        withUndo(`${label} geladen.`, () => {
+            // Tischanordnung: nur die Tische übernehmen, die Personen werden neu gesetzt
+            sd.current = kind === 'layout'
+                ? { cols: p.cols, rows: p.rows, desks: p.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false })) }
+                : cleanSeatingPlan(structuredClone(p), new Set(cls.students.map(s => s.id))) || sd.current;
             seatSel = null; saveSeating(); renderSeating();
         });
-    } else if (del) {
-        const sp = sd.saved.find(x => x.id === parseInt(del.dataset.del, 10));
-        if (!sp) return;
-        withUndo(`"${sp.name}" gelöscht.`, () => {
-            sd.saved = sd.saved.filter(x => x !== sp); saveSeating(); renderSeating();
+    } else {
+        withUndo(`${label} gelöscht.`, () => {
+            sd[key] = sd[key].filter(x => x !== p); saveSeating(); renderSeating();
         });
     }
-});
+}));
 
 // PRÄSENTATIONSMODUS — Vollbild für den Beamer (Fullscreen API, sonst Overlay über die ganze Seite).
 // Zeigt nur Namen: keine Geschlechts-/Sport-Hinweise.
@@ -2537,7 +2452,7 @@ function closePresentation() {
     if ($present.classList.contains('hidden')) return;
     $present.classList.add('hidden');
     document.body.classList.remove('presenting');
-    presentFit = null;
+    presentFit = null; pickerActive = false; clearInterval(pickerTimer);
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
 }
 document.getElementById('present-close-btn').addEventListener('click', closePresentation);
@@ -2610,6 +2525,68 @@ document.getElementById('present-teams-btn').addEventListener('click', () => {
     });
 });
 
+// WER IST DRAN? — zieht zufällig eine Person aus der Teilnehmerliste, ohne Wiederholung,
+// bis alle einmal dran waren. Anzeige gross im Präsentationsmodus (Leertaste = nächste Person).
+const pickerDrawn = new Set();
+let pickerActive = false;
+function openPicker() {
+    if (persons.length === 0) { showAddError('Zuerst Teilnehmer laden oder hinzufügen.'); return; }
+    let nameEl, metaEl;
+    openPresentation('Wer ist dran?', body => {
+        const wrap = document.createElement('div'); wrap.className = 'picker-wrap';
+        nameEl = document.createElement('div'); nameEl.className = 'picker-name'; nameEl.setAttribute('aria-live', 'polite');
+        metaEl = document.createElement('p'); metaEl.className = 'picker-meta';
+        const actions = document.createElement('div'); actions.className = 'picker-actions';
+        const next = document.createElement('button'); next.type = 'button'; next.className = 'picker-btn picker-btn-main';
+        next.innerHTML = '<i class="fas fa-shuffle" aria-hidden="true"></i> Nächste Person';
+        const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'picker-btn';
+        reset.innerHTML = '<i class="fas fa-rotate-left" aria-hidden="true"></i> Von vorn';
+        next.addEventListener('click', () => drawPicker(nameEl, metaEl));
+        reset.addEventListener('click', () => { pickerDrawn.clear(); drawPicker(nameEl, metaEl); });
+        actions.append(next, reset);
+        wrap.append(nameEl, metaEl, actions);
+        body.appendChild(wrap);
+    }, () => fitPickerName(nameEl));
+    pickerActive = true;
+    $presentBody.querySelector('.picker-btn-main').focus();
+    drawPicker(nameEl, metaEl);
+}
+function fitPickerName(nameEl) {
+    if (!nameEl) return;
+    const len = Math.max(4, nameEl.textContent.length);
+    nameEl.style.fontSize = Math.max(32, Math.min($presentBody.clientHeight * 0.32, $presentBody.clientWidth / (len * 0.62))) + 'px';
+}
+let pickerTimer = null;
+function drawPicker(nameEl, metaEl) {
+    const ids = new Set(persons.map(p => p.id));
+    [...pickerDrawn].forEach(id => { if (!ids.has(id)) pickerDrawn.delete(id); });
+    if (pickerDrawn.size >= persons.length) pickerDrawn.clear();
+    const pool = persons.filter(p => !pickerDrawn.has(p.id));
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    pickerDrawn.add(pick.id);
+    const done = () => {
+        nameEl.textContent = pick.name; nameEl.classList.remove('picker-rolling'); fitPickerName(nameEl);
+        metaEl.textContent = `${pickerDrawn.size} von ${persons.length} gezogen` + (pickerDrawn.size === persons.length ? ' — alle waren dran' : '');
+    };
+    clearInterval(pickerTimer);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || persons.length < 2) { done(); return; }
+    // Kurzes "Würfeln" durch zufällige Namen, dann das Ergebnis
+    let ticks = 0;
+    nameEl.classList.add('picker-rolling');
+    pickerTimer = setInterval(() => {
+        nameEl.textContent = persons[Math.floor(Math.random() * persons.length)].name; fitPickerName(nameEl);
+        if (++ticks >= 10) { clearInterval(pickerTimer); done(); }
+    }, 60);
+}
+document.getElementById('picker-btn').addEventListener('click', openPicker);
+document.addEventListener('keydown', e => {
+    if (!pickerActive || $present.classList.contains('hidden') || (e.key !== ' ' && e.key !== 'Enter')) return;
+    if (e.target.closest && e.target.closest('button')) return; // Knöpfe reagieren selbst auf Leertaste/Enter
+    e.preventDefault();
+    const btn = $presentBody.querySelector('.picker-btn-main');
+    if (btn) btn.click();
+});
+
 // TAB 3: TEAMS
 async function addPerson(name, gender, sporty = false, { confirmDuplicate = false } = {}) {
     if (persons.find(p => p.name.toLowerCase() === name.toLowerCase())) {
@@ -2648,11 +2625,12 @@ document.getElementById('add-person-form').addEventListener('submit', async e =>
     document.getElementById('person-name').focus();
 });
 
-document.getElementById('clear-all-btn').addEventListener('click', async () => {
-    const ok = await uiConfirm('Alle Teilnehmer löschen? Die Seite wird danach neu geladen.', { okLabel: 'Löschen', danger: true });
-    if (!ok) return;
-    persons = []; personsManual = false; savePersons();
-    await flushAndReload();
+document.getElementById('clear-all-btn').addEventListener('click', () => {
+    withUndo('Alle Teilnehmer gelöscht.', () => {
+        persons = []; personsManual = false; savePersons(); renderPersonList();
+        document.getElementById('results-section').classList.add('hidden');
+        document.getElementById('source-banner').classList.add('hidden');
+    });
 });
 
 // Klassen direkt in den Teams-Tab laden (ohne Anwesenheitserfassung)
@@ -2696,9 +2674,9 @@ function renderPersonList() {
         clearBtn.classList.remove('hidden');
         persons.forEach(p => {
             const li = document.createElement('li');
-            li.className = 'flex justify-between items-center bg-white p-2.5 rounded-lg shadow-sm border border-gray-100 fade-in';
+            li.className = 'flex justify-between items-center bg-white p-2.5 rounded-lg shadow-sm border border-gray-100';
             const inner = document.createElement('div'); inner.className = 'flex items-center gap-2';
-            const icon = document.createElement('span'); icon.innerHTML = GENDER_ICONS[sanitizeGender(p.gender)];
+            const icon = genderIconEl(p.gender);
             const name = document.createElement('span'); name.className = 'text-sm font-medium text-gray-700'; name.textContent = p.name;
             inner.appendChild(icon); inner.appendChild(name);
             const btn = document.createElement('button');
@@ -2880,7 +2858,7 @@ function renderTeams(teams) {
         const ul = document.createElement('ul'); ul.className = 'team-members p-3 flex-grow' + (team.length > 8 ? ' team-members-2col' : '');
         team.forEach(p => {
             const li = document.createElement('li'); li.className = 'flex items-center gap-2 py-0.5 border-b border-gray-50';
-            const icon = document.createElement('span'); icon.innerHTML = GENDER_ICONS[sanitizeGender(p.gender)];
+            const icon = genderIconEl(p.gender);
             const name = document.createElement('span'); name.className = 'text-gray-700 text-sm team-member-name'; name.textContent = p.name;
             li.appendChild(icon); li.appendChild(name); ul.appendChild(li);
         });
@@ -2916,7 +2894,13 @@ document.getElementById('copy-teams-btn').addEventListener('click', async () => 
 // KOMPLETT-BACKUP (Klassen + Wochenpläne + Anwesenheitsdaten + Teilnehmerliste)
 // Optional mit Passwort verschlüsselt (AES-GCM, Schlüssel via PBKDF2-SHA-256).
 const PBKDF2_ITERATIONS = 210000;
-const b64encode = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+// In Blöcken umwandeln: String.fromCharCode(...bytes) sprengt bei grossen Backups den Call-Stack.
+function b64encode(buf) {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+}
 const b64decode = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
 
 async function deriveBackupKey(password, salt, iterations) {
@@ -2974,6 +2958,7 @@ document.getElementById('backup-export-btn').addEventListener('click', async () 
         }
     }
     downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), `klassenmanager-backup-${todayStr()}.json`);
+    markBackupDone();
 });
 
 const $backupFileInput = document.getElementById('backup-file-input');
@@ -3009,31 +2994,15 @@ $backupFileInput.addEventListener('change', () => {
 
 // Übernimmt validierte Daten (aus Backup-Import oder Datendatei) als neuen App-Zustand.
 function applyRestoredData(result) {
-    classes = result.classes;
-    classIdCounter = result.classIdCounter;
-    stuIdCounter = result.stuIdCounter;
-    attendanceData = result.attendanceData;
-    persons = result.persons;
-    personIdCounter = result.personIdCounter;
-    apartPairs = result.apartPairs || [];
-    exams = result.exams || {};
-    examIdCounter = result.examIdCounter || 1;
-    pointsData = result.pointsData || {};
-    pointsIdCounter = result.pointsIdCounter || 1;
-    seatingData = result.seatingData || {};
-    seatingIdCounter = result.seatingIdCounter || 1;
+    setData(result);
     selSeatingClassId = null; seatSel = null;
     selPointsClassId = null;
     personsManual = false;
     activeClassId = null; selAttendClassId = null; currentSessionRecords = {};
-    selExamClassId = null; selExamId = null; examDirty = false;
+    selExamClassId = null; selExamId = null; examDirty = false; updateExamDirtyHint();
     attendanceDirty = false; updateDirtyHint();
-    saveClasses(); saveAttendanceData(); savePersons(); saveApartPairs(); saveExams(); savePointsData(); saveSeating();
-    renderClassList(); renderClassDetail(); renderPersonList();
-    $attendanceSelect.value = '';
-    document.getElementById('attendance-empty').classList.remove('hidden');
-    document.getElementById('attendance-content').classList.add('hidden');
-    refreshStatsSelect();
+    persistAll();
+    refreshAllViews();
 }
 
 // LOKALE DATENDATEI (File System Access API — Chrome/Edge)
@@ -3107,6 +3076,7 @@ async function writeDataFile() {
         await writable.write(JSON.stringify(buildBackupObject()));
         await writable.close();
         fileWriteErrorShown = false;
+        markBackupDone();
         setFileStatus('connected', dataFileHandle.name);
     } catch (e) {
         setFileStatus('error', `Schreiben in "${dataFileHandle.name}" fehlgeschlagen — Daten sind weiterhin im Browser gespeichert.`);
@@ -3117,14 +3087,6 @@ async function writeDataFile() {
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && fileWriteTimer) { clearTimeout(fileWriteTimer); fileWriteTimer = null; writeDataFile(); }
 });
-
-// Seite neu laden, aber vorher einen evtl. ausstehenden Datendatei-Schreibvorgang
-// abschliessen, damit Datei- und Browser-Stand nach dem Reload nicht auseinanderlaufen.
-async function flushAndReload() {
-    if (fileWriteTimer) { clearTimeout(fileWriteTimer); fileWriteTimer = null; }
-    if (fileStorageActive && dataFileHandle) { try { await writeDataFile(); } catch (e) {} }
-    location.reload();
-}
 
 // Gleicht Browser-Stand und Datei ab: identisch → nichts tun; Datei leer/ungültig →
 // (nach Rückfrage) überschreiben; unterschiedlich → Nutzer entscheidet, welche Seite gilt.
@@ -3223,15 +3185,41 @@ if ('serviceWorker' in navigator) {
     }
 }
 
-// INIT
-loadStorage(); renderClassList(); renderClassDetail(); renderPersonList(); switchTab('classes');
-// Nach einem Reload durch "Neue Klasse" die eben angelegte Klasse wieder auswählen.
-try {
-    const pending = sessionStorage.getItem('tg2_selectClassAfterReload');
-    if (pending !== null) {
-        sessionStorage.removeItem('tg2_selectClassAfterReload');
-        const id = parseInt(pending, 10);
-        if (classes.find(c => c.id === id)) selectClass(id);
+// APP INSTALLIEREN (Chrome/Edge bieten das an, sobald die App per https läuft)
+let installPrompt = null;
+const $installBtn = document.getElementById('install-btn');
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $installBtn.classList.remove('hidden'); });
+window.addEventListener('appinstalled', () => { installPrompt = null; $installBtn.classList.add('hidden'); });
+$installBtn.addEventListener('click', async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    try { await installPrompt.userChoice; } catch (e) {}
+    installPrompt = null; $installBtn.classList.add('hidden');
+});
+
+// DATENSICHERHEIT — Browser bitten, die Daten nicht automatisch zu löschen, und an Backups erinnern,
+// wenn seit 30 Tagen keines erstellt wurde (höchstens einmal pro Woche, nicht in den ersten 14 Tagen).
+const DAY = 86400000;
+function storageNum(key) { try { return parseInt(localStorage.getItem(key) || '0', 10) || 0; } catch (e) { return 0; } }
+function storageSet(key, val) { try { localStorage.setItem(key, String(val)); } catch (e) {} }
+function markBackupDone() { storageSet('tg2_lastBackup', Date.now()); }
+function backupHousekeeping() {
+    if (!classes.some(c => c.students.length)) return;
+    if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
     }
-} catch (e) {}
-initDataFile();
+    const now = Date.now();
+    if (!storageNum('tg2_firstUse')) storageSet('tg2_firstUse', now);
+    if (fileStorageActive || now - storageNum('tg2_firstUse') < 14 * DAY) return;
+    if (now - storageNum('tg2_lastBackup') < 30 * DAY || now - storageNum('tg2_backupNag') < 7 * DAY) return;
+    storageSet('tg2_backupNag', now);
+    showToast('Tipp: Seit über 30 Tagen kein Backup. Browserdaten können verloren gehen.', {
+        action: { label: 'Backup erstellen', fn: () => document.getElementById('backup-export-btn').click() }, duration: 15000
+    });
+}
+
+// INIT
+loadStorage();
+renderClassList(); renderClassDetail();
+switchTab(location.hash.slice(1) || 'classes');
+initDataFile().catch(() => {}).then(backupHousekeeping);

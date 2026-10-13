@@ -4,10 +4,13 @@ Eine Web-App für Lehrpersonen: Klassen verwalten, Anwesenheit erfassen und ausw
 
 *(früher "Team Generator" — umbenannt, weil die App deutlich mehr kann als Teams zu generieren)*
 
+**Warum Klassenmanager?** Kostenlos, ohne Konto und ohne Werbung. Alle Daten bleiben auf dem eigenen Gerät, die App lädt nichts von fremden Servern und läuft nach der Installation auch ohne Internet, z.B. in der Turnhalle. Zum Ausprobieren genügt ein Klick auf **"Beispielklasse anlegen"**.
+
 - **Geräte:** Die App ist für den **Laptop** gedacht, zur Not auch für das **Tablet** (Querformat empfohlen). Eine Bedienung auf dem Smartphone ist nicht vorgesehen.
 - **Technik:** Reine Client-App (HTML/CSS/JavaScript), kein Server und kein Konto nötig.
 - **Daten:** Alle Daten bleiben im `localStorage` des Browsers, optional zusätzlich in einer lokalen Datei.
-- **Offline:** Es werden keine externen Ressourcen geladen (Schriften, Icons und Styles sind gebündelt). Als gehostete Version (https) läuft die App dank Service Worker auch ohne Netz, z.B. in der Turnhalle.
+- **Offline und installierbar:** Es werden keine externen Ressourcen geladen (Schriften, Icons und Styles sind gebündelt). Als gehostete Version (https) läuft die App dank Service Worker auch ohne Netz und lässt sich über **"App installieren"** (oben rechts, Chrome/Edge) bzw. *Teilen → Zum Home-Bildschirm* (iPad) wie eine normale App starten.
+- **Schnell:** Die ganze App lädt rund 460 KB (früher über 800 KB), weil die Symbole als Subset ausgeliefert werden (11 KB statt 375 KB). Beim Erfassen der Anwesenheit wird nur die angeklickte Karte neu gezeichnet, und die automatische Sitzordnung bewertet beim Optimieren nur die betroffenen Nachbarplätze neu.
 
 ## Übersicht
 
@@ -21,11 +24,14 @@ Die App hat sieben Reiter. Die Leiste bleibt beim Scrollen oben stehen.
 | **Prüfungen** | Prüfungen/Lernzielkontrollen mit Noten-Auswertung und TXT-Export |
 | **Punkte** | Punkte-Tracker für Bonusstunden mit Verlaufs-Graph |
 | **Sitzordnung** | Visueller Sitzplan, automatische Zuteilung, speichern, präsentieren |
-| **Teams** | Faire Zufallsteams, Klassen direkt laden, präsentieren |
+| **Teams** | Faire Zufallsteams, "Wer ist dran?"-Zufallsauswahl, Klassen direkt laden, präsentieren |
+
+Jeder Reiter hat eine eigene Adresse (z.B. `…/#teams`), die beim Neuladen erhalten bleibt und sich als Lesezeichen speichern lässt. Die installierte App bietet Schnellzugriffe auf Anwesenheit, Teams und Sitzordnung.
 
 ## Funktionen
 
 ### Klassen
+- **Beispielklasse** (20 Schüler(innen) mit Hobbys, Wochenplan und Punkte-Tracker) zum Ausprobieren, später einfach löschen.
 - Klassen anlegen, umbenennen, löschen; Schüler(innen) einzeln oder per Mehrfach-Import (Text) hinzufügen und wieder entfernen.
 - **Wochenplan** pro Klasse (ein oder mehrere Wochentag/Uhrzeit-Termine).
 - **Unterrichtsart** pro Klasse: *Sport*, *Klassenzimmer* oder *beides* (Standard). Die Sitzordnung zeigt nur Klassen mit Klassenzimmer-Unterricht.
@@ -35,8 +41,8 @@ Die App hat sieben Reiter. Die Leiste bleibt beim Scrollen oben stehen.
 - Entfernte Schüler(innen) mit erfasster Anwesenheit oder Prüfungsergebnissen bleiben als **"ehemalig"** in den Auswertungen sichtbar.
 
 ### Import und Export
-- Klassen als **JSON** exportieren und importieren (inkl. Wochenplan, Sportlich-Markierung, Hobbys).
-- Import auch als **CSV/TXT**: `Klasse;Name;Geschlecht;Sportlich;Kürzel;Hobbys`. Sportlich ist optional (`s`/`ja`/`x`/`1`), Hobbys werden mit `/` getrennt, eine Kopfzeile wird erkannt.
+- Klassen als **JSON** exportieren und importieren (inkl. Wochenplan, Unterrichtsart, Punkte-Tracker, Sportlich-Markierung, Hobbys).
+- Import auch als **CSV/TXT**: `Klasse;Name;Geschlecht;Sportlich;Kürzel;Hobbys`. Sportlich ist optional (`s`/`ja`/`x`/`1`), Hobbys werden mit `/` getrennt, eine Kopfzeile wird erkannt. Trennzeichen `;`, `,` oder Tab; Felder in Anführungszeichen (z.B. `"Meier, Tom"`) und das BOM von Excel-Dateien werden korrekt gelesen.
 - **Termin-Import:** Vergangene Anwesenheitschecks als CSV (aus Excel: *Speichern unter → CSV*), Format `Datum;Name;Status;Grund;Notiz`. Hilfe über das Fragezeichen im Anwesenheits-Reiter.
 
 ### Anwesenheit
@@ -72,6 +78,7 @@ Die App hat sieben Reiter. Die Leiste bleibt beim Scrollen oben stehen.
 - Aufteilung nach **Anzahl Teams** oder **Personen pro Team**; kopieren, drucken, neu mischen.
 - **"Wofür sind die Gruppen?"**: *Kein Sport*, *Sport — allgemeines Spiel* (Sportlichkeit fair verteilen) oder eine **konkrete Sportart** (erscheint, sobald Hobbys erfasst sind). Optional werden auch Geschlechter fair verteilt.
 - **"Nicht zusammen"-Regeln** halten Paare in verschiedenen Teams.
+- **"Wer ist dran?"** zieht zufällig eine Person aus der Teilnehmerliste und zeigt sie gross im Präsentationsmodus. Niemand kommt doppelt dran, bis alle einmal gezogen wurden. **Leertaste** zieht die nächste Person.
 - Sportlichkeit und Hobbys sind im Teams-Reiter bewusst **nicht sichtbar**, damit sie beim Projizieren nicht auffallen.
 
 ### Präsentationsmodus
@@ -79,11 +86,12 @@ Bei Sitzordnung und Teams zeigt **"Präsentieren"** das Ergebnis im Vollbild fü
 
 ### Backup und Datendatei
 - **Komplett-Backup** (Fusszeile): alle Daten als JSON sichern, **optional mit Passwort verschlüsselt** (AES-GCM), und auf einem anderen Gerät wiederherstellen.
+- **Backup-Erinnerung:** Wurde seit 30 Tagen kein Backup erstellt (und ist keine Datendatei verbunden), erinnert die App höchstens einmal pro Woche daran. Zusätzlich bittet sie den Browser, die Daten nicht automatisch zu löschen (`navigator.storage.persist`).
 - **Automatische Datendatei** (Chrome/Edge): Eine JSON-Datei auf der Festplatte verbinden, z.B. im Dokumente-Ordner. Danach wird jede Änderung automatisch dorthin geschrieben und beim Start geladen. Weicht die Datei vom Browser-Stand ab, fragt die App, welcher gelten soll. In Safari und Firefox fehlt die Funktion; dort gelten `localStorage` und das manuelle Backup.
 
 ## Sicherheit und Datenschutz
 
-- **Keine externen Requests:** Tailwind ist vorkompiliert, Font Awesome und Inter liegen lokal in `vendor/`. Es fliessen keine IP-Adressen an Drittanbieter (relevant für DSG/DSGVO im Schulkontext).
+- **Keine externen Requests:** Tailwind ist vorkompiliert, Font Awesome (als Subset) und Inter liegen lokal in `vendor/`. Es fliessen keine IP-Adressen an Drittanbieter (relevant für DSG/DSGVO im Schulkontext).
 - Namen, Notizen und importierte Daten werden nur als Text ins DOM eingefügt (kein XSS über Schülernamen).
 - Importe (Klassen und Backups) werden strikt validiert; ungültige Werte werden verworfen oder normalisiert.
 - CSV-Exporte sind gegen Formel-Injection abgesichert.
@@ -106,6 +114,7 @@ Auf `localhost` wird bewusst **kein Service Worker** registriert (alte Worker un
 ```bash
 npm install          # einmalig (nur Tailwind als Dev-Dependency)
 npm run build:css    # Tailwind neu kompilieren (nach Änderungen an index.html/app.js/core.js)
+npm run build:icons  # Font-Awesome-Subset neu bauen (nach neuen Symbolen; braucht: pip install fonttools brotli)
 npm test             # Unit-Tests (Parser, Validierung, Team-Verteilung, Sitzordnung)
 ```
 
@@ -113,8 +122,9 @@ Struktur:
 - `index.html` / `style.css` — Oberfläche und eigene Styles.
 - `core.js` — reine, DOM-freie Logik (Parser, Backup-Validierung, Team-Verteilung, Sitzordnungs-Zuteilung); wird von den Tests direkt geladen.
 - `app.js` — UI und Zustand, nutzt `window.TG` aus `core.js`.
-- `vendor/` — gebündelte Assets. `vendor/tailwind.css` ist ein Build-Artefakt: nach Klassenänderungen `npm run build:css` ausführen und mit einchecken.
-- `sw.js` / `manifest.webmanifest` / `icon.svg` — PWA und Offline-Betrieb.
+- `vendor/` — gebündelte Assets. `vendor/tailwind.css` und `vendor/fontawesome/css|webfonts/` sind Build-Artefakte (`npm run build:css` bzw. `npm run build:icons`) und werden mit eingecheckt. Die Original-Dateien von Font Awesome liegen in `vendor/fontawesome/source/`.
+- `scripts/build-icons.py` — sucht die verwendeten `fa-…`-Symbole in `index.html`/`app.js` und erzeugt CSS und Schrift nur mit diesen.
+- `sw.js` / `manifest.webmanifest` / `icon.svg` / `icons/` — PWA und Offline-Betrieb. Bei geänderten Dateinamen die Liste und `CACHE_NAME` in `sw.js` anpassen.
 - `tests/core.test.js` — Unit-Tests (`node:test`).
 
 ## Online hosten

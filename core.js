@@ -98,6 +98,30 @@
         return { added, skipped, defaults };
     }
 
+    // CSV-ZEILEN — Excel liefert je nach Region ";" oder ",", teils Tabs, setzt Felder mit
+    // Trennzeichen in Anführungszeichen ("Notiz, mit Komma") und schreibt ein BOM an den Dateianfang.
+    // Pro Zeile gilt das erste vorkommende Trennzeichen in der Reihenfolge ";" → Tab → ",".
+    function csvLines(text) {
+        return String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    }
+    function splitCsvLine(line) {
+        const delim = line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',';
+        const out = [];
+        let cur = '', quoted = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (quoted) {
+                if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+                else if (ch === '"') quoted = false;
+                else cur += ch;
+            } else if (ch === '"' && cur.trim() === '') { cur = ''; quoted = true; }
+            else if (ch === delim) { out.push(cur.trim()); cur = ''; }
+            else cur += ch;
+        }
+        out.push(cur.trim());
+        return out;
+    }
+
     // CSV/TXT-Import: "Klasse;Name;Geschlecht;Sportlich;Kürzel;Hobbys" pro Zeile.
     // Hobbys innerhalb der Spalte mit "/" trennen (Komma ist Spalten-Trenner).
     // Eine Kopfzeile (wie im Format-Beispiel) wird erkannt und übersprungen.
@@ -105,10 +129,9 @@
         return /^klasse$/i.test(a) && /^(name|sch(ü|ue)ler(in)?(nen)?|vorname)$/i.test(b || '');
     }
     function parseCsvImport(text) {
-        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         const rows = [];
-        lines.forEach((line, i) => {
-            const parts = line.split(/[;,]/).map(p => p.trim());
+        csvLines(text).forEach((line, i) => {
+            const parts = splitCsvLine(line);
             if (parts.length < 2) return;
             const [className, studentName, genderRaw, sportyRaw, classTagRaw, hobbiesRaw] = parts;
             if (!className || !studentName) return;
@@ -130,10 +153,9 @@
     // Grund muss einer der bekannten Kategorien entsprechen, sonst wandert der Text in
     // die Notiz. Kopfzeile ("Datum;Name;…") wird übersprungen.
     function parseAttendanceCsv(text) {
-        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         const rows = [], invalid = [];
-        lines.forEach((line, i) => {
-            const parts = line.split(/[;,]/).map(p => p.trim());
+        csvLines(text).forEach((line, i) => {
+            const parts = splitCsvLine(line);
             if (parts.length < 3) { if (parts.join('')) invalid.push(line); return; }
             const [dateRaw, name, statusRaw, reasonRaw, noteRaw] = parts;
             if (i === 0 && /^datum$/i.test(dateRaw) && /^(name|sch(ü|ue)ler(in)?(nen)?)$/i.test(name || '')) return;
@@ -247,7 +269,7 @@
         const { balanceStrict = false, sportLevelOf } = opts || {};
         const levelOf = sportLevelOf || defaultSportLevel;
         const key = name => String(name).trim().toLowerCase();
-        const pairKey = (a, b) => [key(a), key(b)].sort().join(' ');
+        const pairKey = (a, b) => [key(a), key(b)].sort().join('\u0000');
         const conflictSet = new Set((pairs || []).map(([a, b]) => pairKey(a, b)));
         if (conflictSet.size === 0) return { teams, unresolved: false };
         const inConflict = (a, b) => conflictSet.has(pairKey(a.name, b.name));
@@ -513,23 +535,30 @@
         students.forEach(st => { gender[st.id] = st.gender; });
         const apart = (o.apart || []).filter(p => Array.isArray(p) && p.length === 2);
         const byPos = new Map(out.map(d => [d.x + ',' + d.y, d]));
-        const pairs = []; // Nachbarpaare (Tische) mit Gewicht
+        const pairs = []; // Nachbarpaare (Tische): 'h' = direkt nebeneinander, 'a' = Umgebung
+        const pairsOf = new Map(out.map(d => [d, []]));
+        const addPair = (a, b, kind) => { const p = [a, b, kind]; pairs.push(p); pairsOf.get(a).push(p); pairsOf.get(b).push(p); };
         out.forEach(d => {
             const right = byPos.get((d.x + 1) + ',' + d.y);
-            if (right) pairs.push([d, right, 'h']);
+            if (right) addPair(d, right, 'h');
             [[0, 1], [1, 1], [-1, 1]].forEach(([dx, dy]) => {
                 const n = byPos.get((d.x + dx) + ',' + (d.y + dy));
-                if (n) pairs.push([d, n, 'a']);
+                if (n) addPair(d, n, 'a');
             });
         });
         const apartSet = new Set(apart.map(p => Math.min(p[0], p[1]) + '|' + Math.max(p[0], p[1])));
-        function penalty() {
+        function pairCost([a, b, kind]) {
+            if (a.s === null || b.s === null) return 0;
             let sc = 0;
-            for (const [a, b, kind] of pairs) {
-                if (a.s === null || b.s === null) continue;
-                if (kind === 'h' && o.mixGender && gender[a.s] === gender[b.s]) sc += 1;
-                if (apartSet.size && apartSet.has(Math.min(a.s, b.s) + '|' + Math.max(a.s, b.s))) sc += 20;
-            }
+            if (kind === 'h' && o.mixGender && gender[a.s] === gender[b.s]) sc += 1;
+            if (apartSet.size && apartSet.has(Math.min(a.s, b.s) + '|' + Math.max(a.s, b.s))) sc += 20;
+            return sc;
+        }
+        // Kosten aller Paare, die Tisch a oder b berühren (das Paar a–b nur einmal)
+        function localCost(a, b) {
+            let sc = 0;
+            for (const p of pairsOf.get(a)) sc += pairCost(p);
+            for (const p of pairsOf.get(b)) if (p[0] !== a && p[1] !== a) sc += pairCost(p);
             return sc;
         }
         // Zufällige Anfangsbelegung
@@ -537,16 +566,19 @@
         const order = shuffleArray(toPlace, rng);
         free.forEach(d => { d.s = null; });
         order.forEach((st, i) => { slots[i].s = st.id; });
-        let best = penalty();
+        let best = pairs.reduce((sum, p) => sum + pairCost(p), 0);
         const needOpt = (o.mixGender || apartSet.size) && toPlace.length > 1;
         if (needOpt) {
+            // Zufällige Tausche; behalten, wenn es nicht schlechter wird. Nur die betroffenen
+            // Nachbarschaften werden neu bewertet, daher auch bei grossen Rastern schnell.
             const n = free.length;
-            for (let it = 0; it < 3000 && best > 0; it++) {
+            for (let it = 0; it < 6000 && best > 0; it++) {
                 const a = free[Math.floor(rng() * n)], b = free[Math.floor(rng() * n)];
                 if (a === b || (a.s === null && b.s === null)) continue;
+                const before = localCost(a, b);
                 [a.s, b.s] = [b.s, a.s];
-                const sc = penalty();
-                if (sc <= best) best = sc; else [a.s, b.s] = [b.s, a.s];
+                const delta = localCost(a, b) - before;
+                if (delta <= 0) best += delta; else [a.s, b.s] = [b.s, a.s];
             }
         }
         return { desks: out.map(d => ({ x: d.x, y: d.y, s: d.s, l: d.l })), unplaced: 0, ok: true, penalty: best };
@@ -556,7 +588,7 @@
         DATE_RE, TIME_RE, WEEKDAYS, WEEKDAYS_FULL, REASON_CATEGORIES, ATTENDANCE_STATUSES,
         sanitizeGender, sanitizeStatus, parseHobbies, sanitizeHobbies,
         todayStr, getWeekdayIndex, getSemester, formatDateDisplay,
-        bulkParse, isCsvHeader, parseCsvImport, parseAttendanceCsv, escapeCsv, pointsToGrade, computePointsTotal, computePointsSeries,
+        bulkParse, isCsvHeader, splitCsvLine, parseCsvImport, parseAttendanceCsv, escapeCsv, pointsToGrade, computePointsTotal, computePointsSeries,
         shuffleArray, distributeTeams, enforceApart,
         cleanSeatingPlan, generateSeating,
         validateBackup

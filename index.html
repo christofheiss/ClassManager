@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Klassenmanager</title>
-    <meta name="description" content="Klassen verwalten, Anwesenheit mit Gründen erfassen, auswerten und faire Zufallsteams generieren.">
+    <meta name="description" content="Klassenmanager für Lehrpersonen: Anwesenheit, Prüfungen, Bonuspunkte, faire Teams und Sitzordnungen. Kostenlos, offline, ohne Konto, alle Daten bleiben lokal.">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
     <meta name="referrer" content="no-referrer">
     <meta name="theme-color" content="#4f46e5">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <link rel="stylesheet" href="vendor/tailwind.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/icons.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="text-gray-800 min-h-screen py-2 sm:py-4 px-2 md:px-6">
@@ -27,6 +27,9 @@
             </h1>
             <p class="hidden sm:block text-indigo-100/90 text-xs mt-0.5">Klassen verwalten · Anwesenheit erfassen · Auswerten · Teams bilden</p>
         </div>
+        <button id="install-btn" type="button" class="hidden absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 text-xs font-semibold bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition-colors" title="Klassenmanager als App installieren (läuft danach auch offline)">
+            <i class="fas fa-download" aria-hidden="true"></i><span class="hidden sm:inline">App installieren</span>
+        </button>
         <div class="header-blob header-blob-1"></div>
         <div class="header-blob header-blob-2"></div>
     </div>
@@ -35,27 +38,27 @@
     <div class="sticky top-0 z-30 bg-indigo-50 border-b border-indigo-100 flex no-print overflow-x-auto shadow-sm" role="tablist" aria-label="Bereiche">
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 active" data-tab="classes"
                 id="tab-btn-classes" role="tab" aria-selected="true" aria-controls="tab-classes">
-            <i class="fas fa-chalkboard-teacher" aria-hidden="true"></i><span class="hidden sm:inline">Klassen</span><span class="text-[9px] leading-none sm:hidden">Klassen</span>
+            <i class="fas fa-chalkboard-teacher" aria-hidden="true"></i><span class="text-[9px] leading-none sm:text-sm sm:leading-normal">Klassen</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="attendance"
                 id="tab-btn-attendance" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-attendance">
-            <i class="fas fa-clipboard-check" aria-hidden="true"></i><span class="hidden sm:inline">Anwesenheit</span><span class="text-[9px] leading-none sm:hidden">Anwesenheit</span>
+            <i class="fas fa-clipboard-check" aria-hidden="true"></i><span class="text-[9px] leading-none sm:text-sm sm:leading-normal">Anwesenheit</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="stats"
                 id="tab-btn-stats" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-stats">
-            <i class="fas fa-chart-bar" aria-hidden="true"></i><span class="hidden sm:inline">Auswertung</span><span class="text-[9px] leading-none sm:hidden">Auswertung</span>
+            <i class="fas fa-chart-bar" aria-hidden="true"></i><span class="text-[9px] leading-none sm:text-sm sm:leading-normal">Auswertung</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="exams"
                 id="tab-btn-exams" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-exams">
-            <i class="fas fa-file-pen" aria-hidden="true"></i><span class="hidden sm:inline">Prüfungen</span><span class="text-[9px] leading-none sm:hidden">Prüfungen</span>
+            <i class="fas fa-file-pen" aria-hidden="true"></i><span class="text-[9px] leading-none sm:text-sm sm:leading-normal">Prüfungen</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="points"
                 id="tab-btn-points" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-points">
-            <i class="fas fa-star" aria-hidden="true"></i><span class="hidden sm:inline">Punkte</span><span class="text-[9px] leading-none sm:hidden">Punkte</span>
+            <i class="fas fa-star" aria-hidden="true"></i><span class="text-[9px] leading-none sm:text-sm sm:leading-normal">Punkte</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="teams"
                 id="tab-btn-teams" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-teams">
-            <i class="fas fa-users" aria-hidden="true"></i><span class="hidden sm:inline">Teams</span><span class="text-[9px] leading-none sm:hidden">Teams</span>
+            <i class="fas fa-users" aria-hidden="true"></i><span class="text-[9px] leading-none sm:text-sm sm:leading-normal">Teams</span>
         </button>
         <button class="tab-btn flex-1 py-3 px-1 sm:px-2 text-sm text-indigo-700 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2" data-tab="seating"
                 id="tab-btn-seating" role="tab" aria-selected="false" tabindex="-1" aria-controls="tab-seating">
@@ -766,6 +769,9 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
             <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
                     <h2 class="font-semibold">Teilnehmer (<span id="total-count">0</span>)</h2>
+                    <button id="picker-btn" type="button" class="ml-auto mr-3 text-sm text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1" title="Zufällig eine Person auswählen (ohne Wiederholung)">
+                        <i class="fas fa-shuffle text-xs" aria-hidden="true"></i> Wer ist dran?
+                    </button>
                     <button id="clear-all-btn" class="text-sm text-red-400 hover:text-red-600 hidden transition-colors flex items-center gap-1">
                         <i class="fas fa-trash-alt text-xs" aria-hidden="true"></i> Alle löschen
                     </button>
