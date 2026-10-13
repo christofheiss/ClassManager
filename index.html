@@ -119,6 +119,14 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                             <i class="fas fa-plus" aria-hidden="true"></i> Termin hinzufügen
                         </button>
                     </div>
+                    <div class="mt-2">
+                        <label for="new-class-kind" class="block text-sm font-medium text-gray-700 mb-1">Unterricht mit dieser Klasse</label>
+                        <select id="new-class-kind" class="w-full border rounded-md p-2 text-sm bg-white">
+                            <option value="both">Sport und Klassenzimmer</option>
+                            <option value="sport">Nur Sport</option>
+                            <option value="room">Nur Klassenzimmer</option>
+                        </select>
+                    </div>
                     <label class="mt-2 flex items-center gap-2 text-sm cursor-pointer text-amber-800">
                         <input type="checkbox" id="new-class-points-input" class="rounded text-amber-500 h-4 w-4">
                         <span><i class="fas fa-star text-amber-400 mr-1" aria-hidden="true"></i>Klasse sammelt Punkte (Bonusstunden-Tracker, z.B. Sport)</span>
@@ -145,6 +153,14 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                     <div class="flex items-center justify-between mb-2 border-b pb-2">
                         <h2 class="text-lg font-semibold text-indigo-700" id="detail-class-name"></h2>
                         <span class="text-xs text-gray-400" id="detail-student-count"></span>
+                    </div>
+                    <div class="mb-2 flex items-center justify-between gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+                        <label for="detail-class-kind" class="text-xs font-medium text-gray-700"><i class="fas fa-chalkboard mr-1 text-gray-400" aria-hidden="true"></i>Unterricht</label>
+                        <select id="detail-class-kind" class="text-xs border rounded-md p-1.5 bg-white">
+                            <option value="both">Sport und Klassenzimmer</option>
+                            <option value="sport">Nur Sport</option>
+                            <option value="room">Nur Klassenzimmer</option>
+                        </select>
                     </div>
                     <div class="mb-2 flex items-center justify-between p-2.5 bg-amber-50 rounded-lg border border-amber-100">
                         <span class="text-xs font-medium text-amber-800"><i class="fas fa-star text-amber-400 mr-1" aria-hidden="true"></i>Punkte-Tracker (Bonusstunden)</span>
@@ -618,6 +634,7 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                 <div class="flex flex-wrap gap-2">
                     <button id="seating-generate-btn" type="button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm inline-flex items-center gap-2"><i class="fas fa-dice" aria-hidden="true"></i> Sitzordnung erstellen</button>
                     <button id="seating-unseat-btn" type="button" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-3 rounded-lg text-sm inline-flex items-center gap-2"><i class="fas fa-eraser" aria-hidden="true"></i> Plätze leeren</button>
+                    <button id="seating-present-btn" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-lg text-sm inline-flex items-center gap-2"><i class="fas fa-expand" aria-hidden="true"></i> Präsentieren</button>
                     <button id="seating-print-btn" type="button" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-3 rounded-lg text-sm inline-flex items-center gap-2"><i class="fas fa-print" aria-hidden="true"></i> Drucken</button>
                 </div>
                 <p id="seating-msg" class="text-xs text-amber-600 hidden" role="status"></p>
@@ -635,7 +652,18 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
             </div>
 
             <div class="no-print border-t pt-4">
-                <h3 class="text-sm font-semibold text-gray-700 mb-2">Gespeicherte Sitzordnungen</h3>
+                <h3 class="text-sm font-semibold text-gray-700 mb-1">Tischanordnungen dieser Klasse</h3>
+                <p class="text-xs text-gray-400 mb-2">Nur die Tische (ohne Personen) — z.B. «Klassenzimmer» oder «Gruppenarbeit». Beim Laden werden die Personen neu gesetzt.</p>
+                <form id="seating-layout-form" class="flex gap-2 mb-2">
+                    <input type="text" id="seating-layout-name" maxlength="60" placeholder="Name, z.B. Klassenzimmer" aria-label="Name der Tischanordnung" class="flex-1 min-w-0 border rounded-md p-2 text-sm">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md text-sm inline-flex items-center gap-2"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Speichern</button>
+                </form>
+                <ul id="seating-layout-list" class="space-y-1.5"></ul>
+            </div>
+
+            <div class="no-print border-t pt-4">
+                <h3 class="text-sm font-semibold text-gray-700 mb-1">Gespeicherte Sitzordnungen</h3>
+                <p class="text-xs text-gray-400 mb-2">Tische <em>und</em> Personen — beliebig viele pro Klasse.</p>
                 <form id="seating-save-form" class="flex gap-2 mb-2">
                     <input type="text" id="seating-save-name" maxlength="60" placeholder="Name, z.B. Gruppenarbeit" aria-label="Name der Sitzordnung" class="flex-1 min-w-0 border rounded-md p-2 text-sm">
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 rounded-md text-sm inline-flex items-center gap-2"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Speichern</button>
@@ -769,6 +797,9 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
                 <button id="copy-teams-btn" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 text-sm transition-colors">
                     <i class="fas fa-copy" aria-hidden="true"></i> In Zwischenablage
                 </button>
+                <button id="present-teams-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 text-sm transition-colors">
+                    <i class="fas fa-expand" aria-hidden="true"></i> Präsentieren
+                </button>
                 <button id="print-teams-btn" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 text-sm transition-colors">
                     <i class="fas fa-print" aria-hidden="true"></i> Drucken
                 </button>
@@ -809,6 +840,15 @@ Sport-Gruppe A;Kim;d;s;7a;Basketball</pre>
         </div>
     </div>
 
+</div>
+
+<!-- Präsentationsmodus (Vollbild für den Beamer) -->
+<div id="present-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Präsentation">
+    <div class="present-bar">
+        <h2 id="present-title" class="present-title"></h2>
+        <button id="present-close-btn" type="button" class="present-close" aria-label="Präsentation beenden (Esc)"><i class="fas fa-xmark" aria-hidden="true"></i> Schliessen</button>
+    </div>
+    <div id="present-body" class="present-body"></div>
 </div>
 
 <!-- Hinweis bei fehlgeschlagenem Speichern (volles/blockiertes localStorage) -->

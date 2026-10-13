@@ -324,7 +324,7 @@
             const schedule = (Array.isArray(cls.schedule) ? cls.schedule : [])
                 .filter(e => e && Number.isInteger(e.weekday) && e.weekday >= 0 && e.weekday <= 6 && typeof e.time === 'string' && TIME_RE.test(e.time))
                 .map(e => ({ weekday: e.weekday, time: e.time }));
-            cleanClasses.push({ id, name, students, formerStudents, schedule, collectsPoints: cls.collectsPoints === true });
+            cleanClasses.push({ id, name, students, formerStudents, schedule, collectsPoints: cls.collectsPoints === true, kind: ['sport', 'room'].includes(cls.kind) ? cls.kind : 'both' });
             if (id > maxClassId) maxClassId = id;
         }
         const cleanAttendance = {};
@@ -427,7 +427,7 @@
                 if (goals.length || entries.length) cleanPoints[classIdKey] = { goals, entries };
             }
         }
-        // Sitzordnungen: { [classId]: { current: Plan|null, saved: [ { id, name, ...Plan } ] } }
+        // Sitzordnungen: { [classId]: { current: Plan|null, saved: [ { id, name, ...Plan } ], layouts: [ Tischanordnungen ohne Personen ] } }
         const cleanSeating = {};
         let maxSeatId = 0;
         if (data.seatingData && typeof data.seatingData === 'object' && !Array.isArray(data.seatingData)) {
@@ -444,7 +444,15 @@
                     saved.push({ id: sp.id, name, ...plan });
                     if (sp.id > maxSeatId) maxSeatId = sp.id;
                 }
-                if (current || saved.length) cleanSeating[classIdKey] = { current, saved };
+                const layouts = [];
+                for (const lp of (Array.isArray(sd.layouts) ? sd.layouts : [])) {
+                    const plan = cleanSeatingPlan(lp, new Set());
+                    const name = lp && typeof lp.name === 'string' ? lp.name.trim().slice(0, 60) : '';
+                    if (!plan || !name || !Number.isInteger(lp.id) || lp.id <= 0) continue;
+                    layouts.push({ id: lp.id, name, ...plan });
+                    if (lp.id > maxSeatId) maxSeatId = lp.id;
+                }
+                if (current || saved.length || layouts.length) cleanSeating[classIdKey] = { current, saved, layouts };
             }
         }
         return {

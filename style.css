@@ -202,3 +202,23 @@ table thead { letter-spacing: 0.04em; }
 .seat-mode-on { background: var(--brand); color: #fff; font-weight: 600; }
 .seat-scroll { overflow-x: auto; padding-bottom: 4px; }
 @media print { .seat-scroll { overflow: visible; } #seating-grid { min-width: 0 !important; } }
+
+/* ---------- Präsentationsmodus (Beamer) ---------- */
+#present-overlay { position: fixed; inset: 0; z-index: 100; background: #f8f9ff; display: flex; flex-direction: column; overflow: hidden; }
+#present-overlay.hidden { display: none; }
+.present-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.6rem 1.2rem; background: linear-gradient(120deg, #4338ca, #6d28d9); color: #fff; }
+.present-title { font-size: 1.4rem; font-weight: 800; }
+.present-close { background: rgba(255, 255, 255, 0.18); color: #fff; border-radius: 9999px; padding: 0.35rem 1rem; font-size: 0.85rem; font-weight: 600; opacity: 0.55; transition: opacity 0.2s; }
+.present-close:hover, .present-close:focus-visible { opacity: 1; }
+.present-body { flex: 1; min-height: 0; padding: 1rem 1.5rem 1.5rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.present-board { align-self: center; width: 60%; text-align: center; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #fff; background: #334155; border-radius: 10px; padding: 0.4rem 0; }
+.present-seat-grid { flex: 1; min-height: 0; display: grid; gap: 0.7em; }
+.present-desk { display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 700; color: #1e1b4b; background: #fff; border: 3px solid #c7d2fe; border-radius: 0.5em; padding: 0.2em 0.3em; word-break: break-word; line-height: 1.1; box-shadow: 0 2px 6px rgba(79, 70, 229, 0.15); }
+.present-desk-empty { background: transparent; border: 2px dashed #d5d9ee; box-shadow: none; }
+.present-team-grid { flex: 1; min-height: 0; display: grid; gap: 1.2rem; align-content: start; }
+.present-team { background: #fff; border-radius: 1em; overflow: hidden; box-shadow: 0 4px 14px rgba(31, 41, 55, 0.12); border: 1px solid #e5e7eb; }
+.present-team-hdr { line-height: 1.2; color: #fff; font-weight: 800; font-size: 1.15em; padding: 0.4em 0.8em; }
+.present-team ul { list-style: none; margin: 0; padding: 0.4em 0.8em 0.6em; }
+.present-team li { padding: 0.15em 0; line-height: 1.2; font-weight: 600; color: #1f2937; }
+body.presenting { overflow: hidden; }
+@media print { #present-overlay { display: none !important; } }

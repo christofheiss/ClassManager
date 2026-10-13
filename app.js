@@ -28,7 +28,7 @@ let selExamClassId = null, selExamId = null, examDirty = false;
 let pointsData = {}, pointsIdCounter = 1;
 let selPointsClassId = null;
 let selSeatingClassId = null, seatMode = 'seat', seatSel = null;
-// seatingData: { [classId]: { current: Plan|null, saved: [ {id, name, cols, rows, desks} ] } }, Plan = { cols, rows, desks:[{x,y,s,l}] }
+// seatingData: { [classId]: { current: Plan|null, saved: [ {id, name, cols, rows, desks} ] (Sitzordnungen mit Personen), layouts: [ dito ohne Personen ] (Tischanordnungen) } }, Plan = { cols, rows, desks:[{x,y,s,l}] }
 let seatingData = {}, seatingIdCounter = 1;
 
 const GENDER_ICONS = {
@@ -142,6 +142,10 @@ function loadStorage() {
             sd.saved = (Array.isArray(sd.saved) ? sd.saved : []).map(sp => {
                 const plan = cleanSeatingPlan(sp, ids);
                 return plan && sp && Number.isInteger(sp.id) && typeof sp.name === 'string' ? { id: sp.id, name: sp.name, ...plan } : null;
+            }).filter(Boolean);
+            sd.layouts = (Array.isArray(sd.layouts) ? sd.layouts : []).map(lp => {
+                const plan = cleanSeatingPlan(lp, new Set());
+                return plan && lp && Number.isInteger(lp.id) && typeof lp.name === 'string' ? { id: lp.id, name: lp.name, ...plan } : null;
             }).filter(Boolean);
         });
     } catch(e) {}
@@ -334,6 +338,7 @@ function resetNewClassForm() {
     $newClassScheduleRows.innerHTML = '';
     createScheduleRow($newClassScheduleRows);
     document.getElementById('new-class-points-input').checked = false;
+    document.getElementById('new-class-kind').value = 'both';
 }
 
 // Standard-Ziele des Punkte-Trackers (aus der Sport-Praxis; jederzeit anpassbar).
@@ -365,7 +370,8 @@ function doCreateClass() {
     const schedule = readScheduleRows($newClassScheduleRows);
     const collectsPoints = document.getElementById('new-class-points-input').checked;
     const newId = classIdCounter++;
-    classes.push({ id: newId, name, students: [], formerStudents: [], schedule, collectsPoints });
+    const kind = document.getElementById('new-class-kind').value;
+    classes.push({ id: newId, name, students: [], formerStudents: [], schedule, collectsPoints, kind: ['sport', 'room'].includes(kind) ? kind : 'both' });
     if (collectsPoints) seedPointGoals(newId);
     saveClasses();
     // Frischer Start nach dem Anlegen, damit alle Auswahllisten (Anwesenheit,
@@ -400,6 +406,12 @@ function renderClassList() {
         badge.className = `text-xs px-2 py-0.5 rounded-full ml-1 ${isActive ? 'bg-white bg-opacity-20 text-white' : 'bg-gray-100 text-gray-500'}`;
         badge.textContent = `${cls.students.length} SuS`;
         left.appendChild(nameSpan); left.appendChild(badge);
+        if (classKind(cls) !== 'both') {
+            const kindBadge = document.createElement('span');
+            kindBadge.className = `text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-white bg-opacity-20 text-white' : classKind(cls) === 'sport' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'}`;
+            kindBadge.textContent = classKind(cls) === 'sport' ? 'Sport' : 'Klassenzimmer';
+            left.appendChild(kindBadge);
+        }
         left.addEventListener('click', () => selectClass(cls.id));
         const actions = document.createElement('div');
         actions.className = 'flex items-center gap-0.5 ml-2 flex-shrink-0';
@@ -459,10 +471,21 @@ function renderClassDetail() {
     document.getElementById('detail-student-count').textContent = `${cls.students.length} Schüler(in)`;
     document.getElementById('detail-schedule-edit').classList.add('hidden');
     document.getElementById('detail-schedule-display').classList.remove('hidden');
+    document.getElementById('detail-class-kind').value = classKind(cls);
     renderPointsToggle(cls);
     renderScheduleDisplayBadges(cls);
     renderStudentList(cls);
 }
+
+// Unterrichtsart der Klasse: 'sport', 'room' (Klassenzimmer) oder 'both' (Standard, auch für ältere Daten)
+function classKind(cls) { return cls.kind === 'sport' || cls.kind === 'room' ? cls.kind : 'both'; }
+document.getElementById('detail-class-kind').addEventListener('change', function() {
+    const cls = classes.find(c => c.id === activeClassId);
+    if (!cls) return;
+    cls.kind = ['sport', 'room'].includes(this.value) ? this.value : 'both';
+    saveClasses();
+    renderClassList();
+});
 
 function renderPointsToggle(cls) {
     const btn = document.getElementById('toggle-points-btn');
@@ -2006,6 +2029,7 @@ function seatingState(clsId) {
     const sd = seatingData[clsId];
     if (!sd.current) sd.current = { cols: 8, rows: 6, desks: seatingPreset('rows', 8, 6) };
     if (!Array.isArray(sd.saved)) sd.saved = [];
+    if (!Array.isArray(sd.layouts)) sd.layouts = [];
     return sd;
 }
 function seatingPreset(kind, cols, rows) {
@@ -2024,13 +2048,14 @@ function currentSeatingClass() { return classes.find(c => c.id === selSeatingCla
 function refreshSeatingSelect() {
     const prev = $seatingSelect.value;
     $seatingSelect.innerHTML = '<option value="">-- Klasse wählen --</option>';
-    classes.forEach(cls => {
+    // Sitzordnungen gibt es nur für Klassen mit Unterricht im Klassenzimmer
+    classes.filter(c => classKind(c) !== 'sport').forEach(cls => {
         const opt = document.createElement('option');
         opt.value = String(cls.id); opt.textContent = `${cls.name} (${cls.students.length} SuS)`;
         $seatingSelect.appendChild(opt);
     });
-    if (prev && classes.find(c => String(c.id) === prev)) $seatingSelect.value = prev;
-    else if (selSeatingClassId !== null && classes.find(c => c.id === selSeatingClassId)) $seatingSelect.value = String(selSeatingClassId);
+    if (prev && classes.find(c => String(c.id) === prev && classKind(c) !== 'sport')) $seatingSelect.value = prev;
+    else if (selSeatingClassId !== null && classes.find(c => c.id === selSeatingClassId && classKind(c) !== 'sport')) $seatingSelect.value = String(selSeatingClassId);
     const id = parseInt($seatingSelect.value, 10);
     selSeatingClassId = isNaN(id) ? null : id;
     renderSeating();
@@ -2130,6 +2155,29 @@ function renderSeating() {
     });
     document.getElementById('seating-unseated').replaceChildren(chips);
     renderSeatingSaved(sd);
+    renderSeatingLayouts(sd);
+}
+
+function renderSeatingLayouts(sd) {
+    const list = document.getElementById('seating-layout-list');
+    const frag = document.createDocumentFragment();
+    if (sd.layouts.length === 0) {
+        const li = document.createElement('li'); li.className = 'text-xs text-gray-400'; li.textContent = 'Noch keine Tischanordnung gespeichert.'; frag.appendChild(li);
+    }
+    sd.layouts.forEach(lp => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2 shadow-sm';
+        const name = document.createElement('span'); name.className = 'text-sm font-medium truncate flex-1'; name.textContent = lp.name;
+        const meta = document.createElement('span'); meta.className = 'text-xs text-gray-400 flex-shrink-0'; meta.textContent = `${lp.desks.length} Tische`;
+        const load = document.createElement('button'); load.type = 'button'; load.dataset.loadLayout = lp.id;
+        load.className = 'text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-md font-medium flex-shrink-0'; load.textContent = 'Laden';
+        const del = document.createElement('button'); del.type = 'button'; del.dataset.delLayout = lp.id;
+        del.className = 'text-gray-300 hover:text-red-500 text-xs p-1 flex-shrink-0';
+        del.innerHTML = '<i class="fas fa-trash-alt" aria-hidden="true"></i>'; del.setAttribute('aria-label', `"${lp.name}" löschen`);
+        li.appendChild(name); li.appendChild(meta); li.appendChild(load); li.appendChild(del);
+        frag.appendChild(li);
+    });
+    list.replaceChildren(frag);
 }
 
 function renderSeatingSaved(sd) {
@@ -2287,6 +2335,45 @@ document.getElementById('seating-save-form').addEventListener('submit', e => {
     input.value = '';
     saveSeating(); renderSeating();
 });
+document.getElementById('seating-layout-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const cls = currentSeatingClass();
+    const input = document.getElementById('seating-layout-name');
+    const name = input.value.trim().slice(0, 60);
+    if (!cls || !name) return;
+    const sd = seatingState(cls.id);
+    const copy = structuredClone(sd.current);
+    copy.desks = copy.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false }));
+    const existing = sd.layouts.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (existing) { Object.assign(existing, copy); showToast(`Tischanordnung "${existing.name}" aktualisiert.`); }
+    else { sd.layouts.push({ id: seatingIdCounter++, name, ...copy }); showToast(`Tischanordnung als "${name}" gespeichert.`); }
+    input.value = '';
+    saveSeating(); renderSeating();
+});
+document.getElementById('seating-layout-list').addEventListener('click', e => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const sd = seatingState(cls.id);
+    const load = e.target.closest('[data-load-layout]');
+    const del = e.target.closest('[data-del-layout]');
+    if (load) {
+        const lp = sd.layouts.find(x => x.id === parseInt(load.dataset.loadLayout, 10));
+        if (!lp) return;
+        setSeatMsg('');
+        withUndo(`Tischanordnung "${lp.name}" geladen.`, () => {
+            // Nur die Tische werden übernommen; die Personen müssen neu gesetzt werden
+            sd.current = { cols: lp.cols, rows: lp.rows, desks: lp.desks.map(d => ({ x: d.x, y: d.y, s: null, l: false })) };
+            seatSel = null; saveSeating(); renderSeating();
+        });
+    } else if (del) {
+        const lp = sd.layouts.find(x => x.id === parseInt(del.dataset.delLayout, 10));
+        if (!lp) return;
+        withUndo(`Tischanordnung "${lp.name}" gelöscht.`, () => {
+            sd.layouts = sd.layouts.filter(x => x !== lp); saveSeating(); renderSeating();
+        });
+    }
+});
+
 document.getElementById('seating-saved-list').addEventListener('click', e => {
     const cls = currentSeatingClass();
     if (!cls) return;
@@ -2308,6 +2395,99 @@ document.getElementById('seating-saved-list').addEventListener('click', e => {
             sd.saved = sd.saved.filter(x => x !== sp); saveSeating(); renderSeating();
         });
     }
+});
+
+// PRÄSENTATIONSMODUS — Vollbild für den Beamer (Fullscreen API, sonst Overlay über die ganze Seite).
+// Zeigt nur Namen: keine Geschlechts-/Sport-Hinweise.
+const $present = document.getElementById('present-overlay');
+const $presentBody = document.getElementById('present-body');
+let presentFit = null;
+function openPresentation(title, build, fit) {
+    document.getElementById('present-title').textContent = title;
+    $presentBody.replaceChildren();
+    build($presentBody);
+    $present.classList.remove('hidden');
+    document.body.classList.add('presenting');
+    presentFit = fit;
+    fit();
+    if ($present.requestFullscreen) $present.requestFullscreen().catch(() => {});
+    document.getElementById('present-close-btn').focus();
+}
+function closePresentation() {
+    if ($present.classList.contains('hidden')) return;
+    $present.classList.add('hidden');
+    document.body.classList.remove('presenting');
+    presentFit = null;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+document.getElementById('present-close-btn').addEventListener('click', closePresentation);
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) closePresentation(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePresentation(); });
+window.addEventListener('resize', () => { if (presentFit) presentFit(); });
+
+document.getElementById('seating-present-btn').addEventListener('click', () => {
+    const cls = currentSeatingClass();
+    if (!cls) return;
+    const plan = seatingState(cls.id).current;
+    const byId = new Map(cls.students.map(s => [s.id, s]));
+    if (plan.desks.length === 0) { setSeatMsg('Es sind noch keine Tische gesetzt.'); return; }
+    // Nur den belegten Ausschnitt des Rasters zeigen, damit die Namen möglichst gross werden
+    const minX = Math.min(...plan.desks.map(d => d.x)), maxX = Math.max(...plan.desks.map(d => d.x));
+    const minY = Math.min(...plan.desks.map(d => d.y)), maxY = Math.max(...plan.desks.map(d => d.y));
+    const cols = maxX - minX + 1, rows = maxY - minY + 1;
+    const names = plan.desks.map(d => (d.s !== null && byId.get(d.s)) ? byId.get(d.s).name : '');
+    const longest = Math.max(6, ...names.map(n => n.length));
+    openPresentation(`Sitzordnung ${cls.name}`, body => {
+        const board = document.createElement('div'); board.className = 'present-board'; board.textContent = 'Tafel';
+        const grid = document.createElement('div'); grid.className = 'present-seat-grid';
+        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+        plan.desks.forEach((d, i) => {
+            const el = document.createElement('div');
+            el.className = 'present-desk' + (names[i] ? '' : ' present-desk-empty');
+            el.style.gridColumn = String(d.x - minX + 1); el.style.gridRow = String(d.y - minY + 1);
+            el.textContent = names[i];
+            grid.appendChild(el);
+        });
+        body.appendChild(board); body.appendChild(grid);
+    }, () => {
+        const grid = $presentBody.querySelector('.present-seat-grid');
+        if (!grid) return;
+        const w = $presentBody.clientWidth / cols, h = ($presentBody.clientHeight - 60) / rows;
+        const font = Math.max(11, Math.min(44, w / (longest * 0.58), h / 2.2));
+        grid.style.fontSize = font + 'px';
+    });
+});
+
+document.getElementById('present-teams-btn').addEventListener('click', () => {
+    const teams = Array.from(document.querySelectorAll('#teams-container .team-card')).map(card => ({
+        title: card.querySelector('h3').textContent,
+        names: Array.from(card.querySelectorAll('.team-member-name')).map(n => n.textContent)
+    }));
+    if (teams.length === 0) return;
+    const n = teams.length;
+    const cols = n <= 2 ? n : n <= 4 ? 2 : n <= 6 ? 3 : 4;
+    const rows = Math.ceil(n / cols);
+    const maxSize = Math.max(...teams.map(t => t.names.length));
+    const longest = Math.max(6, ...teams.flatMap(t => t.names.map(x => x.length)));
+    openPresentation('Teams', body => {
+        const grid = document.createElement('div'); grid.className = 'present-team-grid';
+        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        teams.forEach((t, i) => {
+            const card = document.createElement('div'); card.className = 'present-team';
+            const h = document.createElement('div'); h.className = `present-team-hdr team-hdr-${i % 8}`; h.textContent = t.title;
+            const ul = document.createElement('ul');
+            t.names.forEach(nm => { const li = document.createElement('li'); li.textContent = nm; ul.appendChild(li); });
+            card.appendChild(h); card.appendChild(ul); grid.appendChild(card);
+        });
+        body.appendChild(grid);
+    }, () => {
+        const grid = $presentBody.querySelector('.present-team-grid');
+        if (!grid) return;
+        const w = $presentBody.clientWidth / cols - 30, h = ($presentBody.clientHeight - 20) / rows - 20;
+        const font = Math.max(10, Math.min(40, w / (longest * 0.62), h / (maxSize * 1.5 + 3.4)));
+        grid.style.fontSize = font + 'px';
+    });
 });
 
 // TAB 3: TEAMS
@@ -2370,7 +2550,7 @@ function renderTeamsClassList() {
         const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = String(cls.id); cb.className = 'h-4 w-4';
         cb.checked = checked.has(cb.value);
         const name = document.createElement('span'); name.className = 'flex-1 truncate'; name.textContent = cls.name;
-        const n = document.createElement('span'); n.className = 'text-xs text-gray-400'; n.textContent = `${cls.students.length} SuS`;
+        const n = document.createElement('span'); n.className = 'text-xs text-gray-400'; n.textContent = `${cls.students.length} SuS` + (classKind(cls) === 'sport' ? ' · Sport' : classKind(cls) === 'room' ? ' · Klassenzimmer' : '');
         label.appendChild(cb); label.appendChild(name); label.appendChild(n);
         li.appendChild(label); frag.appendChild(li);
     });
