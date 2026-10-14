@@ -112,6 +112,15 @@ Bei Sitzordnung und Teams zeigt **"Präsentieren"** das Ergebnis im Vollbild fü
 
 ## Lokal starten
 
+**Mac, ohne Terminal:** Im Finder die Datei `Klassenmanager starten.command` doppelklicken. Der Klassenmanager öffnet sich im Browser unter http://localhost:8000. Das kleine Fenster, das dabei aufgeht, offen lassen, solange die App genutzt wird; Fenster schliessen beendet sie.
+
+- Beim allerersten Mal blockiert macOS die Datei. Dann **Rechtsklick > Öffnen > Öffnen** wählen (nur einmal nötig). Falls kein Doppelklick möglich ist, einmalig im Terminal `chmod +x "Klassenmanager starten.command"` ausführen.
+- Das Skript nutzt Python 3 und sonst das auf dem Mac vorinstallierte Ruby. Klappt beides nicht, einmalig `xcode-select --install` ausführen.
+- Tipp: Die Datei per Rechtsklick > Alias erzeugen auf den Schreibtisch oder ins Dock legen.
+- Immer über dieses Skript starten: Die Daten hängen an der Adresse `localhost:8000`.
+
+Von Hand:
+
 ```bash
 python3 -m http.server 8000
 # dann http://localhost:8000 öffnen
