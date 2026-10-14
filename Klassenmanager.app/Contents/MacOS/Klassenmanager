@@ -1,0 +1,59 @@
+#!/bin/bash
+# Mac-App zum Klassenmanager: startet einen kleinen lokalen Server unsichtbar im Hintergrund
+# und öffnet die App im Browser. Kein Terminalfenster nötig.
+# Läuft der Server schon, wird nur der Browser geöffnet. Er endet beim Abmelden oder Neustart.
+#
+# Wichtig: Immer derselbe Port (8000). Der Browser speichert die Daten pro Adresse;
+# mit einem anderen Port wären die bisherigen Klassen scheinbar "weg".
+
+PORT=8000
+URL="http://localhost:$PORT/"
+LOG="$HOME/Library/Logs/Klassenmanager.log"
+# Apps erhalten nur einen minimalen PATH; Homebrew-Pfade ergänzen
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+# Die App liegt im Projektordner: Klassenmanager.app/Contents/MacOS/ -> drei Ebenen hoch
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+
+alert() {
+    osascript -e "display alert \"Klassenmanager\" message \"$1\" as critical" >/dev/null 2>&1
+    exit 1
+}
+
+server_running() {
+    curl -s -o /dev/null --noproxy "*" --max-time 2 "$URL"
+}
+
+[ -f "$ROOT/index.html" ] ||
+    alert "Die App muss im Ordner ClassManager bleiben. Bitte zurückschieben und für schnellen Zugriff stattdessen ins Dock ziehen."
+
+if server_running; then
+    open "$URL"
+    exit 0
+fi
+
+# Server starten: zuerst Python 3, sonst das vorinstallierte Ruby. /usr/bin/python3 ist auf dem
+# Mac nur ein Platzhalter, der ohne die "Command Line Tools" ein Installationsfenster öffnet.
+start_server() {
+    (cd "$ROOT" && nohup "$@" >>"$LOG" 2>&1 &)
+    for _ in $(seq 1 30); do
+        server_running && return 0
+        sleep 0.2
+    done
+    return 1
+}
+
+mkdir -p "$(dirname "$LOG")"
+echo "--- $(date): Start" >"$LOG"   # pro Start neu, damit die Datei nicht wächst
+
+if command -v python3 >/dev/null 2>&1 &&
+   { [ "$(command -v python3)" != "/usr/bin/python3" ] || xcode-select -p >/dev/null 2>&1; } &&
+   start_server python3 -m http.server "$PORT" --bind 127.0.0.1; then
+    :
+elif command -v ruby >/dev/null 2>&1 && start_server ruby -run -e httpd . -p "$PORT" -b 127.0.0.1; then
+    :
+else
+    alert "Der Klassenmanager konnte nicht gestartet werden. Ist Port $PORT von einem anderen Programm belegt? Sonst einmalig im Terminal xcode-select --install ausführen (installiert Python 3) und die App erneut öffnen."
+fi
+
+open "$URL"
